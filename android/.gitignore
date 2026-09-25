@@ -1,0 +1,15 @@
+*.iml
+.gradle
+/local.properties
+/.idea
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# 署名鍵は絶対にバージョン管理に含めない
+keystore.properties
+keystore/*.jks
+keystore/*.keystore

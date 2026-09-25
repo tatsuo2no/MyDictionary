@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:padding="8dp"
+    android:layout_margin="8dp">
+
+    <FrameLayout
+        android:layout_width="124dp"
+        android:layout_height="162dp">
+
+        <View
+            android:id="@+id/shelfIconView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/cover_border_shape" />
+
+        <ImageView
+            android:id="@+id/shelfCoverPatternView"
+            android:layout_width="122dp"
+            android:layout_height="160dp"
+            android:layout_gravity="center"
+            android:contentDescription="@null" />
+
+        <!-- シェルフの並び替えは常に手動なので、ドラッグハンドルは常時表示する。長押し（＝シェルフ
+             オプションを開く）と干渉しないよう、ドラッグはこのハンドルを触ったときだけ開始する。 -->
+        <ImageView
+            android:id="@+id/dragHandleView"
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:layout_gravity="top|start"
+            android:layout_margin="4dp"
+            android:padding="3dp"
+            android:background="@drawable/drag_handle_bg"
+            android:src="@drawable/ic_drag_handle"
+            android:contentDescription="@string/shelf_reorder_hint" />
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/shelfNameView"
+        android:layout_width="124dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:gravity="center"
+        android:maxLines="3" />
+
+</LinearLayout>

@@ -1,0 +1,16 @@
+.screen-title {
+    -fx-font-size: 20px;
+    -fx-font-weight: bold;
+}
+
+.book-card {
+    -fx-background-color: derive(-fx-base, 10%);
+    -fx-background-radius: 8;
+    -fx-border-color: #cccccc;
+    -fx-border-radius: 8;
+    -fx-cursor: hand;
+}
+
+.book-card:hover {
+    -fx-border-color: #4a90d9;
+}

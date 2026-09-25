@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <application
+        android:name=".MyDictionaryApplication"
+        android:allowBackup="true"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.MyDictionary">
+
+        <activity
+            android:name=".ui.ShelfListActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity android:name=".ui.ShelfCreateActivity" android:exported="false" />
+        <activity android:name=".ui.ShelfOptionsActivity" android:exported="false" />
+        <activity android:name=".ui.BookListActivity" android:exported="false" />
+        <activity android:name=".ui.BookCreateActivity" android:exported="false" />
+        <activity android:name=".ui.BookActivity" android:exported="false" />
+        <activity android:name=".ui.BookOptionsActivity" android:exported="false" />
+        <activity android:name=".ui.TagActivity" android:exported="false" />
+        <activity android:name=".ui.NoteColumnActivity" android:exported="false" />
+        <activity android:name=".ui.NoteActivity" android:exported="false" />
+        <activity android:name=".ui.NoteCreateActivity" android:exported="false" />
+
+    </application>
+
+</manifest>

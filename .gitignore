@@ -1,0 +1,28 @@
+# Gradleビルド成果物
+build/
+.gradle/
+core/build/
+desktop/build/
+android/build/
+android/app/build/
+android/.gradle/
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+
+# ローカル環境固有の設定（SDKパス等）
+local.properties
+android/local.properties
+
+# 署名鍵・認証情報は絶対にバージョン管理に含めない
+keystore.properties
+android/keystore.properties
+keystore/*.jks
+keystore/*.keystore
+android/keystore/*.jks
+android/keystore/*.keystore
+
+# Claude Codeのローカルツール設定（プロジェクトのソースではない）
+.claude/

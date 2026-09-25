@@ -1,0 +1,71 @@
+plugins {
+    id 'application'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.compilerArgs << '-Xlint:deprecation'
+}
+
+def javafxVersion = '26.0.2'
+def javafxPlatform = 'win'
+
+dependencies {
+    implementation project(':core')
+
+    implementation "org.openjfx:javafx-base:${javafxVersion}:${javafxPlatform}"
+    implementation "org.openjfx:javafx-graphics:${javafxVersion}:${javafxPlatform}"
+    implementation "org.openjfx:javafx-controls:${javafxVersion}:${javafxPlatform}"
+    implementation "org.openjfx:javafx-fxml:${javafxVersion}:${javafxPlatform}"
+    // javafx-webはjavafx-media(の実体jar)を内部で必要とするが、明示的に依存宣言しないと
+    // Gradleが中身のないスタブjar(no-classifier版)を解決してしまい、
+    // WebEngineの初期化がNoClassDefFoundErrorで失敗する。win版を明示的に指定する。
+    implementation "org.openjfx:javafx-media:${javafxVersion}:${javafxPlatform}"
+    implementation "org.openjfx:javafx-web:${javafxVersion}:${javafxPlatform}"
+
+    implementation 'org.xerial:sqlite-jdbc:3.53.2.1'
+    implementation 'org.sejda.imageio:webp-imageio:0.1.6'
+
+    testImplementation platform('org.junit:junit-bom:5.11.0')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+application {
+    mainClass = 'com.mydictionary.desktop.Launcher'
+}
+
+// jpackage(JDK同梱)でMyDictionary.exeを生成する。WiXが未導入の環境でも動く app-image 形式。
+// インストーラー(--type exe/msi)にしたい場合はWiX Toolsetの導入が別途必要。
+tasks.register('jpackageExe', Exec) {
+    dependsOn tasks.named('installDist')
+
+    def libDir = layout.buildDirectory.dir("install/${project.name}/lib").get().asFile
+    def destDir = layout.buildDirectory.dir('jpackage').get().asFile
+    def isWindows = System.getProperty('os.name').toLowerCase().contains('windows')
+    def jpackageBin = new File(System.getProperty('java.home'), isWindows ? 'bin/jpackage.exe' : 'bin/jpackage')
+
+    doFirst {
+        delete destDir
+    }
+
+    commandLine jpackageBin.absolutePath,
+        '--type', 'app-image',
+        '--input', libDir.absolutePath,
+        '--dest', destDir.absolutePath,
+        '--name', 'MyDictionary',
+        '--main-jar', "${project.name}.jar",
+        '--main-class', 'com.mydictionary.desktop.Launcher',
+        '--app-version', '1.0',
+        '--vendor', 'MyDictionary',
+        '--description', 'MyDictionary - Book/Note/Tag manager'
+}

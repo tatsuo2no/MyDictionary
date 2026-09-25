@@ -1,0 +1,125 @@
+<resources>
+    <string name="app_name">MyDictionary</string>
+
+    <!-- 共通 -->
+    <string name="action_back">戻る</string>
+    <string name="action_edit">編集</string>
+    <string name="action_delete">削除</string>
+    <string name="action_browse">参照...</string>
+    <string name="yes">はい</string>
+    <string name="no">いいえ</string>
+    <string name="book_count_format">%1$d 件</string>
+    <string name="error_invalid_name_chars">英数字・平仮名・カタカナ・漢字・記号(-.+/*_!?()[]・など)・半角スペースのみ使用できます</string>
+
+    <!-- シェルフ一覧画面（ホーム画面） -->
+    <string name="shelf_list_title">シェルフ一覧</string>
+    <string name="action_create_shelf">シェルフを作成</string>
+    <string name="shelf_reorder_hint">長押しでドラッグして並び替えられます</string>
+    <string name="confirm_exit_message">終了しますか？</string>
+
+    <!-- 同期機能 -->
+    <string name="action_sync">同期</string>
+    <string name="folder_name_dialog_title">同期フォルダ名を入力してください</string>
+    <string name="folder_name_dialog_hint">例: MyDictionarySync</string>
+    <string name="sync_folder_not_found">指定した名前のフォルダがGoogle Drive内に見つかりませんでした</string>
+    <string name="sync_in_progress">同期しています…</string>
+    <string name="sync_completed">同期が完了しました</string>
+    <string name="sync_error_title">同期エラー</string>
+    <string name="sync_caution_hint">※初回はGoogleアカウントでのログインと同期フォルダ名の入力が必要です（デスクトップ版で指定したものと同じフォルダ名）。同期先フォルダを変更したい場合は、このボタンを長押ししてください。</string>
+
+    <!-- シェルフ作成/オプション画面 -->
+    <string name="shelf_create_title">シェルフを作成</string>
+    <string name="shelf_name_hint">英数字・平仮名・カタカナ・漢字・記号(-.+/*_!?()[]・など)・半角スペースが使用できます</string>
+    <string name="label_shelf_cover">シェルフカバー</string>
+    <string name="shelf_options_title">シェルフオプション</string>
+    <string name="delete_shelf_title">シェルフの削除</string>
+    <string name="delete_shelf_message">このシェルフを削除しますか？（一度削除したシェルフは復元できません）</string>
+    <string name="delete_shelf_blocked_message">このシェルフにはブックが残っているため削除できません。先にブックを他のシェルフへ移動するか、ブック自体を削除してください。</string>
+    <string name="error_shelf_name_taken">そのシェルフ名は既に使われています</string>
+
+    <!-- ブックリスト画面（シェルフ内のブック一覧） -->
+    <string name="label_book_sort_mode">並び順</string>
+    <string name="sort_mode_manual">手動</string>
+    <string name="sort_mode_title">名前順</string>
+    <string name="sort_mode_created">作成日順</string>
+    <string name="book_reorder_hint">長押しでドラッグして並び替えられます</string>
+    <string name="action_create_book">ブックを作成</string>
+
+    <!-- ブック作成画面 -->
+    <string name="book_create_title">ブックを作成</string>
+    <string name="book_title_hint">英数字・平仮名・カタカナ・漢字・記号(-.+/*_!?()[]・など)・半角スペースが使用できます</string>
+    <string name="label_theme">ブックテーマ</string>
+    <string name="label_font">ブックフォント</string>
+    <string name="label_font_size">フォントサイズ</string>
+    <string name="label_icon">ブックカバー</string>
+    <string name="dialog_title_cover_pattern_picker">カバーの模様を選択</string>
+    <string name="label_tags_optional">タグ（オプション）</string>
+    <string name="action_add_tag_to_note">タグを追加</string>
+    <string name="tag_csv_hint">カンマ区切りで初期タグを入力（オプション）</string>
+    <string name="action_save_create">作成する</string>
+    <string name="error_invalid_tag_name">タグ名は英数字・平仮名・カタカナ・漢字・記号(-.+/*_!?()[]・など)のみ使用できます: %1$s</string>
+
+    <!-- ブック画面 -->
+    <string name="action_create_note">ノートを作成</string>
+    <string name="action_book_options">ブックオプション</string>
+    <string name="search_hint">文字列で検索（各項目・本文）</string>
+    <string name="sort_by_column_format">%1$s順</string>
+    <string name="tag_filter_all">すべてのタグ</string>
+
+    <!-- ブックオプション画面 -->
+    <string name="book_options_title">ブックオプション</string>
+    <string name="label_shelf">所属シェルフ</string>
+    <string name="action_save">保存する</string>
+    <string name="action_note_columns">ノート項目</string>
+    <string name="delete_book_title">ブックの削除</string>
+    <string name="delete_book_message">このブックを削除しますか？（一度削除したブックは復元できません）</string>
+    <string name="delete_confirm_hint">「削除」と入力してください</string>
+    <string name="delete_keyword">削除</string>
+
+    <!-- タグ画面 -->
+    <string name="tag_screen_title_format">%1$s のタグ</string>
+    <string name="action_add_root_tag">タグを追加</string>
+    <string name="action_add_child_tag">＋子タグ</string>
+    <string name="add_root_tag_title">タグを追加</string>
+    <string name="add_child_tag_title_format">「%1$s」の子タグを追加</string>
+    <string name="edit_tag_title">タグ名を編集</string>
+    <string name="confirm_edit_or_delete_tag">このタグを編集/削除しますか？</string>
+    <string name="no_tags_in_book">（このブックにはタグがありません）</string>
+
+    <string name="no_notes">ノートがありません</string>
+
+    <!-- ノート項目（カラム）設定画面 -->
+    <string name="note_column_screen_title_format">%1$s のノート項目</string>
+    <string name="action_add_note_column">項目を追加</string>
+    <string name="action_rename">名前を変更</string>
+    <string name="label_note_column_required">必須</string>
+    <string name="note_column_hint">先頭の項目は常に必須で、ノート一覧の見出しや名前順の並び替えに使われます（削除できません）。それ以外の項目は必須・任意を切り替えたり、削除したりできます。</string>
+    <string name="add_note_column_title">項目を追加</string>
+    <string name="rename_note_column_title">名前を変更</string>
+    <string name="confirm_delete_note_column_format">「%1$s」を削除しますか？（この項目に入力されていた内容も削除されます）</string>
+
+    <!-- ノート画面 -->
+    <string name="action_edit_note">ノートを編集</string>
+    <string name="action_delete_note">ノートを削除</string>
+    <string name="delete_note_message">このノートを削除しますか？（一度削除したノートは復元できません）</string>
+    <string name="footnote_header">注釈</string>
+
+    <!-- ノート作成/編集画面 -->
+    <string name="note_create_title">ノートを作成</string>
+    <string name="note_edit_title">ノートを編集</string>
+    <string name="optional_field_label_format">%1$s（オプション）</string>
+    <string name="label_note_background_theme">本文の背景色</string>
+    <string name="label_note_background_image">本文の背景画像（オプション）</string>
+    <string name="label_note_text_color">本文の標準文字色</string>
+    <string name="action_clear_image">画像をクリア</string>
+    <string name="background_image_not_set">（未設定）</string>
+    <string name="error_background_image_save_failed">背景画像の保存に失敗しました: %1$s</string>
+    <string name="note_body_label">本文（Markdown風記法が使用できます）</string>
+    <string name="action_insert_image">画像を挿入</string>
+    <string name="action_update_preview">プレビュー更新</string>
+    <string name="action_save_note">ノートを保存</string>
+    <string name="error_required_columns_format">%1$sは必須です</string>
+    <string name="error_image_save_failed">画像の保存に失敗しました: %1$s</string>
+    <string name="error_cover_image_save_failed">カバー画像の保存に失敗しました: %1$s</string>
+    <string name="confirm_discard_note_edit">編集中の内容は破棄されます。戻りますか？</string>
+</resources>
