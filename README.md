@@ -36,6 +36,54 @@ MyDictionary/
 
 `android/settings.gradle`は`core`ディレクトリを直接参照するため、`core`のソースはデスクトップ版・Android版の両方から共通で使われる。
 
+## インストール方法
+
+このリポジトリはソースコードのみを配布しており（ビルド成果物・署名鍵はGitに含めていない）、
+利用するには各自の環境でビルドしてから「インストール」する必要がある。ビルド環境の詳細
+（JDKバージョン・Android SDK等）は後述の「Eclipseでのインポート方法」「Android Studioでの
+開き方」の各節を参照。
+
+### Windows版（exeのビルドと導入）
+
+1. リポジトリを取得する。
+   ```bash
+   git clone https://github.com/tatsuo2no/MyDictionary.git
+   cd MyDictionary
+   ```
+2. JDK 26がインストールされていることを確認し、exeをビルドする。
+   ```bash
+   gradle :desktop:jpackageExe
+   ```
+3. `desktop/build/jpackage/MyDictionary/` フォルダが生成される。**このフォルダ一式**を、
+   使いたい場所（例: `C:\Program Files\MyDictionary` や任意のフォルダ）へコピーする。
+   フォルダ内にJavaランタイムが同梱されているため、別途Javaをインストールする必要はない。
+4. コピー先の `MyDictionary.exe` を実行する。必要ならデスクトップにショートカットを
+   作成しておくと便利（インストーラー形式ではなく、フォルダをコピーするだけの
+   「アプリイメージ」形式のため。詳細は後述「exe化について」を参照）。
+5. 初回起動時にサンプルデータが自動的に投入される。「設定」画面からデータ保存先フォルダ
+   （Google Drive等の同期フォルダ）を指定できる。
+
+### Android版（APKのビルドと導入）
+
+1. リポジトリを取得する（上記と共通）。
+2. Android Studioで `MyDictionary/android` フォルダを開くか、コマンドラインでAPKをビルドする
+   （要Android SDK・JDK 17。詳細は後述「Android Studioでの開き方」を参照）。
+   ```bash
+   cd android
+   gradle :app:assembleDebug
+   ```
+   自分用の署名付きAPKが必要な場合は `gradle :app:assembleRelease` を使う（別途、自分自身の
+   署名鍵を用意する必要がある。詳細は後述「apk化について」を参照。このリポジトリには
+   署名鍵を含めていないため、cloneしただけでは`assembleRelease`は動かない）。
+3. 生成された `android/app/build/outputs/apk/debug/app-debug.apk` を端末に転送する
+   （USBケーブル、またはGoogle Drive等のクラウドストレージ経由）。
+4. 端末側で「設定 > セキュリティ」から、APKを開くアプリ（ファイルアプリ等）に対して
+   「提供元不明のアプリ」のインストールを許可する。
+5. 転送したAPKファイルを開いてインストールする。
+   （Google Playでは公開していないため、この方法＝サイドロードでのみインストール可能）
+6. 初回起動時にサンプルデータが自動的に投入される。デスクトップ版とデータを共有したい場合は、
+   ホーム画面の「同期」ボタンから設定する（詳細は後述「デスクトップ版⇔Android版のデータ連携」を参照）。
+
 ## 今回のセッションで実装した範囲
 
 - プロジェクト全体の構成（core / desktop / androidの分離）
