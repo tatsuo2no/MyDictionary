@@ -137,6 +137,13 @@
             android:text="@string/note_body_label"
             android:paddingTop="8dp" />
 
+        <LinearLayout
+            android:id="@+id/formatToolbarContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:orientation="horizontal" />
+
         <EditText
             android:id="@+id/bodyField"
             android:layout_width="match_parent"
@@ -145,24 +152,12 @@
             android:inputType="textMultiLine"
             android:minLines="10" />
 
-        <LinearLayout
-            android:layout_width="match_parent"
+        <Button
+            android:id="@+id/previewButton"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:paddingTop="8dp">
-
-            <Button
-                android:id="@+id/insertImageButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/action_insert_image" />
-
-            <Button
-                android:id="@+id/previewButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/action_update_preview" />
-        </LinearLayout>
+            android:layout_marginTop="8dp"
+            android:text="@string/action_update_preview" />
 
         <WebView
             android:id="@+id/previewWebView"

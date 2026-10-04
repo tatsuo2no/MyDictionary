@@ -164,7 +164,10 @@ public class NoteCreateActivity extends AppCompatActivity {
         buildAppearanceControls();
 
         findViewById(R.id.backButton).setOnClickListener(v -> onBack());
-        findViewById(R.id.insertImageButton).setOnClickListener(v -> pickImageLauncher.launch("image/*"));
+        new NoteFormatToolbar(this, findViewById(R.id.formatToolbarContainer), bodyField,
+            () -> java.util.Arrays.stream(com.mydictionary.core.model.BookFont.values())
+                .map(com.mydictionary.core.model.BookFont::getFamilyName).collect(java.util.stream.Collectors.toList()),
+            () -> pickImageLauncher.launch("image/*"));
         findViewById(R.id.previewButton).setOnClickListener(v -> updatePreview());
         findViewById(R.id.saveButton).setOnClickListener(v -> onSave());
 
