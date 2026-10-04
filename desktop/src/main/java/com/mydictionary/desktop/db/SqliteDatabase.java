@@ -118,6 +118,7 @@ public class SqliteDatabase implements AutoCloseable {
                 name TEXT NOT NULL,
                 required INTEGER NOT NULL DEFAULT 0,
                 sort_order INTEGER NOT NULL DEFAULT 0,
+                is_primary INTEGER NOT NULL DEFAULT 0,
                 updated_at TEXT,
                 FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE
             )
@@ -167,6 +168,7 @@ public class SqliteDatabase implements AutoCloseable {
         addColumnIfMissing("notes", "background_theme", "TEXT");
         addColumnIfMissing("notes", "background_image", "TEXT");
         addColumnIfMissing("notes", "text_color", "TEXT");
+        addColumnIfMissing("note_columns", "is_primary", "INTEGER NOT NULL DEFAULT 0");
 
         backfillUuids("shelves");
         backfillUuids("books");

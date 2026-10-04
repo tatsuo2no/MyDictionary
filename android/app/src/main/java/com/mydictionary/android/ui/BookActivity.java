@@ -26,6 +26,7 @@ import com.mydictionary.android.db.AndroidTagRepository;
 import com.mydictionary.core.model.Book;
 import com.mydictionary.core.model.Note;
 import com.mydictionary.core.model.NoteColumn;
+import com.mydictionary.core.model.NoteColumns;
 import com.mydictionary.core.model.Tag;
 
 import java.text.Collator;
@@ -138,6 +139,8 @@ public class BookActivity extends AppCompatActivity {
         ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item,
             labels);
         sortSpinner.setAdapter(adapter);
+        // 並び替えの既定は主キーの項目順。
+        sortSpinner.setSelection(columns.indexOf(NoteColumns.primary(columns)));
         sortSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
@@ -220,7 +223,7 @@ public class BookActivity extends AppCompatActivity {
 
         int sortIndex = sortSpinner.getSelectedItemPosition();
         NoteColumn sortColumn = (sortIndex >= 0 && sortIndex < columns.size()) ? columns.get(sortIndex)
-            : columns.get(0);
+            : NoteColumns.primary(columns);
         Collator collator = Collator.getInstance(Locale.JAPANESE);
         filtered.sort(Comparator.comparing(n -> n.getFieldValue(sortColumn.getId()), collator));
 

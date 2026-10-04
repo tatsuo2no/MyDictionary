@@ -202,9 +202,9 @@ public final class DatabaseMerger {
             NoteColumn winner = pickWinner(a, b, NoteColumn::getUpdatedAt);
 
             NoteColumn resolvedA = sideA.upsertFromSync(bookIdA, uuid, winner.getName(), winner.isRequired(),
-                winner.getSortOrder(), winner.getUpdatedAt());
+                winner.getSortOrder(), winner.isPrimaryKey(), winner.getUpdatedAt());
             NoteColumn resolvedB = sideB.upsertFromSync(bookIdB, uuid, winner.getName(), winner.isRequired(),
-                winner.getSortOrder(), winner.getUpdatedAt());
+                winner.getSortOrder(), winner.isPrimaryKey(), winner.getUpdatedAt());
 
             outIdByUuidA.put(uuid, resolvedA.getId());
             outIdByUuidB.put(uuid, resolvedB.getId());

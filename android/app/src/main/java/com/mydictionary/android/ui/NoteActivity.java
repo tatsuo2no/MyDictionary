@@ -112,8 +112,10 @@ public class NoteActivity extends AppCompatActivity {
         titleLabel.setTextColor(textColor);
 
         LinearLayout otherFieldsContainer = findViewById(R.id.otherFieldsContainer);
-        for (int i = 1; i < columns.size(); i++) {
-            NoteColumn column = columns.get(i);
+        for (NoteColumn column : columns) {
+            if (NoteColumns.isPrimary(column, columns)) {
+                continue;
+            }
             String value = note.getFieldValue(column.getId());
             if (value == null || value.isBlank()) {
                 continue;

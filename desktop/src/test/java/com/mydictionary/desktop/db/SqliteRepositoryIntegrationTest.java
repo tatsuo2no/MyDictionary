@@ -6,6 +6,7 @@ import com.mydictionary.core.model.BookFont;
 import com.mydictionary.core.model.BookTheme;
 import com.mydictionary.core.model.Note;
 import com.mydictionary.core.model.NoteColumn;
+import com.mydictionary.core.model.NoteColumns;
 import com.mydictionary.core.model.NoteTextColor;
 import com.mydictionary.core.model.Shelf;
 import com.mydictionary.core.model.Tag;
@@ -389,6 +390,97 @@ class SqliteRepositoryIntegrationTest {
             assertEquals(0, bookRepository.findByShelfId(shelfA.getId()).size());
             assertEquals(1, bookRepository.findByShelfId(shelfB.getId()).size());
             assertEquals(shelfB.getId(), bookRepository.findById(book.getId()).orElseThrow().getShelfId());
+        }
+    }
+
+    private static Book insertBook(SqliteDatabase database) {
+        return new SqliteBookRepository(database).insert(new Book(0, null, insertShelf(database), "主キー確認",
+            BookTheme.GREEN, BookFont.MEIRYO_UI, BookCover.ofPattern(BookCover.Pattern.PLAIN),
+            Instant.now(), Instant.now()));
+    }
+
+    @Test
+    void newBookHasItsFirstColumnAsPrimaryKey(@TempDir Path tempDir) {
+        try (SqliteDatabase database = new SqliteDatabase(tempDir.resolve("test.db"))) {
+            database.initSchema();
+            Book book = insertBook(database);
+
+            List<NoteColumn> columns = new SqliteNoteColumnRepository(database).findByBookId(book.getId());
+            assertTrue(columns.get(0).isPrimaryKey());
+            assertEquals(1, columns.stream().filter(NoteColumn::isPrimaryKey).count());
+            assertEquals(columns.get(0).getId(), NoteColumns.primary(columns).getId());
+        }
+    }
+
+    @Test
+    void settingAnotherColumnAsPrimaryKeyMovesTheMarkAndMakesItRequired(@TempDir Path tempDir) {
+        try (SqliteDatabase database = new SqliteDatabase(tempDir.resolve("test.db"))) {
+            database.initSchema();
+            Book book = insertBook(database);
+            SqliteNoteColumnRepository repository = new SqliteNoteColumnRepository(database);
+
+            NoteColumn optional = repository.findByBookId(book.getId()).get(2);
+            assertFalse(optional.isRequired());
+
+            repository.setPrimary(book.getId(), optional.getId());
+
+            List<NoteColumn> columns = repository.findByBookId(book.getId());
+            assertEquals(1, columns.stream().filter(NoteColumn::isPrimaryKey).count());
+            NoteColumn primary = NoteColumns.primary(columns);
+            assertEquals(optional.getId(), primary.getId());
+            assertTrue(primary.isRequired());
+            assertFalse(columns.get(0).isPrimaryKey());
+            assertTrue(columns.get(0).isRequired());
+        }
+    }
+
+    @Test
+    void primaryKeyValueIsUsedAsTheNoteHeading(@TempDir Path tempDir) {
+        try (SqliteDatabase database = new SqliteDatabase(tempDir.resolve("test.db"))) {
+            database.initSchema();
+            Book book = insertBook(database);
+            SqliteNoteColumnRepository repository = new SqliteNoteColumnRepository(database);
+            List<NoteColumn> before = repository.findByBookId(book.getId());
+
+            Note note = new Note(0, null, book.getId(), "", Instant.now(), Instant.now());
+            note.setFieldValues(Map.of(before.get(0).getId(), "犬", before.get(1).getId(), "いぬ"));
+            Note saved = new SqliteNoteRepository(database).insert(note);
+
+            assertEquals("犬", NoteColumns.primaryValue(saved, before));
+            repository.setPrimary(book.getId(), before.get(1).getId());
+            assertEquals("いぬ", NoteColumns.primaryValue(saved, repository.findByBookId(book.getId())));
+        }
+    }
+
+    @Test
+    void bookWithoutAnyPrimaryMarkFallsBackToTheFirstColumn(@TempDir Path tempDir) throws Exception {
+        try (SqliteDatabase database = new SqliteDatabase(tempDir.resolve("test.db"))) {
+            database.initSchema();
+            Book book = insertBook(database);
+            try (var st = database.getConnection().createStatement()) {
+                st.execute("UPDATE note_columns SET is_primary = 0");
+            }
+
+            List<NoteColumn> columns = new SqliteNoteColumnRepository(database).findByBookId(book.getId());
+            assertEquals(0, columns.stream().filter(NoteColumn::isPrimaryKey).count());
+            assertEquals(columns.get(0).getId(), NoteColumns.primary(columns).getId());
+        }
+    }
+
+    @Test
+    void addsIsPrimaryColumnToOldDatabaseWithoutLosingColumns(@TempDir Path tempDir) throws Exception {
+        try (SqliteDatabase database = new SqliteDatabase(tempDir.resolve("test.db"))) {
+            database.initSchema();
+            Book book = insertBook(database);
+            try (var st = database.getConnection().createStatement()) {
+                st.execute("ALTER TABLE note_columns DROP COLUMN is_primary");
+            }
+
+            database.initSchema();
+
+            List<NoteColumn> columns = new SqliteNoteColumnRepository(database).findByBookId(book.getId());
+            assertEquals(3, columns.size());
+            assertEquals(columns.get(0).getId(), NoteColumns.primary(columns).getId());
         }
     }
 }

@@ -93,7 +93,8 @@
     <string name="action_add_note_column">項目を追加</string>
     <string name="action_rename">名前を変更</string>
     <string name="label_note_column_required">必須</string>
-    <string name="note_column_hint">先頭の項目は常に必須で、ノート一覧の見出しや名前順の並び替えに使われます（削除できません）。それ以外の項目は必須・任意を切り替えたり、削除したりできます。</string>
+    <string name="label_note_column_primary">主キー</string>
+    <string name="note_column_hint">「主キー」に設定した項目は、ノート一覧で太字の大文字の見出しとして表示され、名前順の並び替えの既定にも使われます。主キーは常に必須で、削除できません。それ以外の項目は必須・任意を切り替えたり、削除したりできます。</string>
     <string name="add_note_column_title">項目を追加</string>
     <string name="rename_note_column_title">名前を変更</string>
     <string name="confirm_delete_note_column_format">「%1$s」を削除しますか？（この項目に入力されていた内容も削除されます）</string>

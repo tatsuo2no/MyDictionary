@@ -2,6 +2,7 @@ package com.mydictionary.desktop.screen;
 
 import com.mydictionary.core.model.Book;
 import com.mydictionary.core.model.NoteColumn;
+import com.mydictionary.core.model.NoteColumns;
 import com.mydictionary.core.validation.NameValidator;
 import com.mydictionary.desktop.db.SqliteBookRepository;
 import com.mydictionary.desktop.db.SqliteDatabase;
@@ -13,7 +14,9 @@ import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.RadioButton;
 import javafx.scene.control.TextInputDialog;
+import javafx.scene.control.ToggleGroup;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -25,7 +28,7 @@ import java.util.Optional;
 /**
  * ノートのカラム（項目）設定画面。以前は「項目名・読み・英訳」の3つが固定だったが、
  * ブックごとに自由な名前・数のカラムを設定できるようにした（2026-09）。
- * 先頭（並び順が最小）のカラムは常に必須カラムで、削除できない
+ * ブックごとに「主キー」のカラムを1つ選べる。主キーは常に必須で、削除できない
  * （ノート一覧の見出し・ノート内リンクの既定表示・名前順の並び替えに使われる）。
  * それ以外のカラムは、必須/任意をチェックボックスで切り替えられ、削除もできる。
  * タグ画面（{@link TagScreen}）と同じく、追加・変更・削除は都度即座にDBへ反映する。
@@ -76,7 +79,8 @@ public class NoteColumnScreen {
         HBox.setHgrow(title, Priority.ALWAYS);
 
         Label hint = new Label(
-            "先頭の項目は常に必須で、ノート一覧の見出しや名前順の並び替えに使われます（削除できません）。"
+            "「主キー」に設定した項目は、ノート一覧の見出し（Android版では太字の大文字）や名前順の並び替えの"
+                + "既定に使われます。主キーは常に必須で、削除できません。"
                 + "それ以外の項目は必須・任意を切り替えたり、削除したりできます。");
         hint.setWrapText(true);
 
@@ -92,17 +96,28 @@ public class NoteColumnScreen {
     private void refreshList() {
         List<NoteColumn> columns = columnRepository.findByBookId(bookId);
         listBox.getChildren().clear();
-        for (int i = 0; i < columns.size(); i++) {
-            listBox.getChildren().add(buildColumnRow(columns.get(i), i == 0));
+        ToggleGroup primaryGroup = new ToggleGroup();
+        NoteColumn primary = columns.isEmpty() ? null : NoteColumns.primary(columns);
+        for (NoteColumn column : columns) {
+            listBox.getChildren().add(buildColumnRow(column, primary != null && column.getId() == primary.getId(),
+                primaryGroup));
         }
     }
 
-    private HBox buildColumnRow(NoteColumn column, boolean isPrimary) {
+    private HBox buildColumnRow(NoteColumn column, boolean isPrimary, ToggleGroup primaryGroup) {
         Label nameLabel = new Label(column.getName());
         nameLabel.setPrefWidth(160);
         if (isPrimary) {
             nameLabel.setStyle("-fx-font-weight: bold;");
         }
+
+        RadioButton primaryRadio = new RadioButton("主キー");
+        primaryRadio.setToggleGroup(primaryGroup);
+        primaryRadio.setSelected(isPrimary);
+        primaryRadio.setOnAction(e -> {
+            columnRepository.setPrimary(bookId, column.getId());
+            refreshList();
+        });
 
         CheckBox requiredCheck = new CheckBox("必須");
         requiredCheck.setSelected(isPrimary || column.isRequired());
@@ -120,7 +135,7 @@ public class NoteColumnScreen {
         deleteButton.setDisable(isPrimary);
         deleteButton.setOnAction(e -> onDeleteColumn(column));
 
-        HBox row = new HBox(12, nameLabel, requiredCheck, renameButton, deleteButton);
+        HBox row = new HBox(12, nameLabel, primaryRadio, requiredCheck, renameButton, deleteButton);
         row.setAlignment(Pos.CENTER_LEFT);
         row.setPadding(new Insets(4, 0, 4, 0));
         return row;

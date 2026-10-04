@@ -6,6 +6,7 @@ import com.mydictionary.core.model.BookCover;
 import com.mydictionary.core.model.BookTheme;
 import com.mydictionary.core.model.Note;
 import com.mydictionary.core.model.NoteColumn;
+import com.mydictionary.core.model.NoteColumns;
 import com.mydictionary.core.model.Shelf;
 import com.mydictionary.core.model.Tag;
 import com.mydictionary.core.sync.DatabaseMerger;
@@ -196,6 +197,47 @@ class DatabaseMergerIntegrationTest {
 
             Book bookB = booksB.findByUuid(bookA.getUuid()).orElseThrow();
             assertEquals(shelf2B.getId(), bookB.getShelfId());
+        }
+    }
+
+    @Test
+    void changingThePrimaryKeyColumnSyncsAcrossSides(@TempDir Path tempDir) {
+        try (SqliteDatabase dbA = new SqliteDatabase(tempDir.resolve("a.db"));
+             SqliteDatabase dbB = new SqliteDatabase(tempDir.resolve("b.db"))) {
+            dbA.initSchema();
+            dbB.initSchema();
+
+            SqliteShelfRepository shelvesA = new SqliteShelfRepository(dbA);
+            SqliteBookRepository booksA = new SqliteBookRepository(dbA);
+            SqliteTagRepository tagsA = new SqliteTagRepository(dbA);
+            SqliteNoteColumnRepository columnsA = new SqliteNoteColumnRepository(dbA);
+            SqliteNoteRepository notesA = new SqliteNoteRepository(dbA);
+
+            SqliteShelfRepository shelvesB = new SqliteShelfRepository(dbB);
+            SqliteBookRepository booksB = new SqliteBookRepository(dbB);
+            SqliteTagRepository tagsB = new SqliteTagRepository(dbB);
+            SqliteNoteColumnRepository columnsB = new SqliteNoteColumnRepository(dbB);
+            SqliteNoteRepository notesB = new SqliteNoteRepository(dbB);
+
+            Shelf shelf = shelvesA.insert(new Shelf(0, null, "シェルフ",
+                BookCover.ofPattern(BookCover.Pattern.PLAIN), Instant.now(), Instant.now()));
+            Book bookA = booksA.insert(new Book(0, null, shelf.getId(), "ブック", BookTheme.GREEN,
+                BookFont.MEIRYO_UI, BookCover.ofPattern(BookCover.Pattern.PLAIN), Instant.now(), Instant.now()));
+            DatabaseMerger.merge(shelvesA, booksA, tagsA, columnsA, notesA,
+                shelvesB, booksB, tagsB, columnsB, notesB);
+
+            // A側で「読み」（2番目の項目）を主キーに変更してから再同期する。
+            List<NoteColumn> columnsInA = columnsA.findByBookId(bookA.getId());
+            NoteColumn reading = columnsInA.get(1);
+            columnsA.setPrimary(bookA.getId(), reading.getId());
+
+            DatabaseMerger.merge(shelvesA, booksA, tagsA, columnsA, notesA,
+                shelvesB, booksB, tagsB, columnsB, notesB);
+
+            Book bookB = booksB.findByUuid(bookA.getUuid()).orElseThrow();
+            List<NoteColumn> columnsInB = columnsB.findByBookId(bookB.getId());
+            assertEquals(reading.getUuid(), NoteColumns.primary(columnsInB).getUuid());
+            assertEquals(1, columnsInB.stream().filter(NoteColumn::isPrimaryKey).count());
         }
     }
 }

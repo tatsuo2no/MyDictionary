@@ -7,10 +7,11 @@ import java.time.Instant;
  * 以前は「項目名・読み・英訳」の3つが固定だったが、ブックごとに自由な名前のカラムを
  * 好きな数だけ定義できるように変更した（2026-09）。
  *
- * 並び順（sortOrder）の先頭（0番目）のカラムは常に必須カラムとして扱われ、削除できない。
- * これは以前の「項目名」に相当し、ノート一覧の見出し表示・ノート内リンクの既定表示・
- * 名前順の並び替えの基準として使われる。先頭以外のカラムは、必須にするか任意にするかを
- * requiredフラグで個別に切り替えられる。
+ * ブックごとに1つ、「主キー」のカラムを設定できる（{@link NoteColumns#primary}）。主キーのカラムは
+ * 常に必須で削除できず、ノート一覧の見出し表示・ノート内リンクの既定表示・名前順の並び替えの
+ * 既定の基準として使われる。主キーを一度も設定していないブックでは、並び順（sortOrder）の
+ * 先頭のカラムが主キーとして扱われる（以前の「先頭カラムが必須」という仕様との互換）。
+ * 主キー以外のカラムは、必須にするか任意にするかをrequiredフラグで個別に切り替えられる。
  */
 public class NoteColumn {
     private long id;
@@ -20,6 +21,13 @@ public class NoteColumn {
     private boolean required;
     private int sortOrder;
     private Instant updatedAt;
+
+    /**
+     * 主キーに設定されているか。既定値を持つ任意の設定なので、コンストラクタ引数ではなく
+     * フィールド+setterで持つ（既存のnew NoteColumn(...)呼び出しを壊さないため）。
+     * 設定は{@code NoteColumnRepository#setPrimary}で行い、同じブックの他カラムの印を外す。
+     */
+    private boolean primaryKey;
 
     /**
      * uuidはデバイス間同期でカラムの同一性を判定するための識別子。
@@ -74,6 +82,14 @@ public class NoteColumn {
 
     public void setSortOrder(int sortOrder) {
         this.sortOrder = sortOrder;
+    }
+
+    public boolean isPrimaryKey() {
+        return primaryKey;
+    }
+
+    public void setPrimaryKey(boolean primaryKey) {
+        this.primaryKey = primaryKey;
     }
 
     public Instant getUpdatedAt() {

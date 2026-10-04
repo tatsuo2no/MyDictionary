@@ -121,10 +121,12 @@ public class NoteScreen {
 
         VBox header = new VBox(6, topRow);
 
-        // 先頭（必須・primary）カラムは見出しとして表示済みなので、残りのカラムを
+        // 主キーのカラムは見出しとして表示済みなので、残りのカラムを
         // 値が入力されているものだけ「項目名: 値」の形で並べる。
-        for (int i = 1; i < columns.size(); i++) {
-            NoteColumn column = columns.get(i);
+        for (NoteColumn column : columns) {
+            if (NoteColumns.isPrimary(column, columns)) {
+                continue;
+            }
             String value = note.getFieldValue(column.getId());
             if (value == null || value.isBlank()) {
                 continue;

@@ -24,8 +24,8 @@ import java.util.List;
 /**
  * ノート項目（カラム）設定画面。以前は「項目名・読み・英訳」の3つが固定だったが、
  * ブックごとに自由な名前・数のカラムを設定できるようにした（2026-09）。
- * 先頭（並び順が最小）の項目は常に必須で削除できない（ノート一覧の見出し・
- * ノート内リンクの既定表示・名前順の並び替えに使われる）。それ以外は必須/任意を
+ * ブックごとに「主キー」の項目を1つ選べる。主キーは常に必須で削除できない（ノート一覧の
+ * 見出し・ノート内リンクの既定表示・名前順の並び替えに使われる）。それ以外は必須/任意を
  * 切り替えたり削除したりできる。タグ画面と同じく、追加・変更・削除は都度即座にDBへ反映する。
  */
 public class NoteColumnActivity extends AppCompatActivity implements NoteColumnAdapter.Listener {
@@ -74,6 +74,12 @@ public class NoteColumnActivity extends AppCompatActivity implements NoteColumnA
     public void onRequiredChanged(NoteColumn column, boolean required) {
         column.setRequired(required);
         columnRepository.update(column);
+    }
+
+    @Override
+    public void onPrimaryChosen(NoteColumn column) {
+        columnRepository.setPrimary(bookId, column.getId());
+        refresh();
     }
 
     @Override

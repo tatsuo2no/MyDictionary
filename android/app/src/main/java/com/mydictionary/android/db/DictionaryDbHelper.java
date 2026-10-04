@@ -16,7 +16,7 @@ import java.util.UUID;
 /** デスクトップ版SqliteDatabaseと同じスキーマをAndroidのSQLiteOpenHelperで再現する。 */
 public class DictionaryDbHelper extends SQLiteOpenHelper {
     private static final String DATABASE_NAME = "mydictionary.db";
-    private static final int DATABASE_VERSION = 8;
+    private static final int DATABASE_VERSION = 9;
 
     public DictionaryDbHelper(Context context) {
         super(context.getApplicationContext(), DATABASE_NAME, null, DATABASE_VERSION);
@@ -113,6 +113,7 @@ public class DictionaryDbHelper extends SQLiteOpenHelper {
             + "name TEXT NOT NULL,"
             + "required INTEGER NOT NULL DEFAULT 0,"
             + "sort_order INTEGER NOT NULL DEFAULT 0,"
+            + "is_primary INTEGER NOT NULL DEFAULT 0,"
             + "updated_at TEXT,"
             + "FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE)");
 
@@ -187,6 +188,7 @@ public class DictionaryDbHelper extends SQLiteOpenHelper {
         addColumnIfMissing(db, "notes", "background_theme", "TEXT");
         addColumnIfMissing(db, "notes", "background_image", "TEXT");
         addColumnIfMissing(db, "notes", "text_color", "TEXT");
+        addColumnIfMissing(db, "note_columns", "is_primary", "INTEGER NOT NULL DEFAULT 0");
 
         backfillUuids(db, "shelves");
         backfillUuids(db, "books");

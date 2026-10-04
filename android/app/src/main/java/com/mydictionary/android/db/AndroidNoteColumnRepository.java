@@ -64,6 +64,7 @@ public class AndroidNoteColumnRepository implements NoteColumnRepository {
         values.put("name", column.getName());
         values.put("required", column.isRequired() ? 1 : 0);
         values.put("sort_order", column.getSortOrder());
+        values.put("is_primary", column.isPrimaryKey() ? 1 : 0);
         values.put("updated_at", Instant.now().toString());
         long id = db.insertOrThrow("note_columns", null, values);
         return findById(id).orElseThrow(() -> new IllegalStateException("カラムの作成に失敗しました"));
@@ -76,6 +77,7 @@ public class AndroidNoteColumnRepository implements NoteColumnRepository {
         values.put("name", column.getName());
         values.put("required", column.isRequired() ? 1 : 0);
         values.put("sort_order", column.getSortOrder());
+        values.put("is_primary", column.isPrimaryKey() ? 1 : 0);
         values.put("updated_at", Instant.now().toString());
         db.update("note_columns", values, "id = ?", new String[]{String.valueOf(column.getId())});
     }
@@ -87,15 +89,46 @@ public class AndroidNoteColumnRepository implements NoteColumnRepository {
     }
 
     @Override
+    public void setPrimary(long bookId, long columnId) {
+        SQLiteDatabase db = dbHelper.getWritableDatabase();
+        String now = Instant.now().toString();
+        db.beginTransaction();
+        try {
+            for (NoteColumn column : findByBookId(bookId)) {
+                ContentValues values = new ContentValues();
+                if (column.getId() == columnId) {
+                    if (column.isPrimaryKey() && column.isRequired()) {
+                        continue;
+                    }
+                    values.put("is_primary", 1);
+                    values.put("required", 1);
+                } else {
+                    if (!column.isPrimaryKey()) {
+                        continue;
+                    }
+                    values.put("is_primary", 0);
+                }
+                values.put("updated_at", now);
+                db.update("note_columns", values, "id = ?", new String[]{String.valueOf(column.getId())});
+            }
+            db.setTransactionSuccessful();
+        } finally {
+            db.endTransaction();
+        }
+    }
+
+    @Override
     public void seedDefaultColumns(long bookId) {
-        insert(new NoteColumn(0, null, bookId, "項目名", true, 0, Instant.now()));
+        NoteColumn primary = new NoteColumn(0, null, bookId, "項目名", true, 0, Instant.now());
+        primary.setPrimaryKey(true);
+        insert(primary);
         insert(new NoteColumn(0, null, bookId, "読み", true, 1, Instant.now()));
         insert(new NoteColumn(0, null, bookId, "英訳", false, 2, Instant.now()));
     }
 
     @Override
     public NoteColumn upsertFromSync(long bookId, String uuid, String name, boolean required, int sortOrder,
-                                      Instant updatedAt) {
+                                      boolean primaryKey, Instant updatedAt) {
         SQLiteDatabase db = dbHelper.getWritableDatabase();
         Optional<NoteColumn> existing = findByUuid(bookId, uuid);
 
@@ -103,6 +136,7 @@ public class AndroidNoteColumnRepository implements NoteColumnRepository {
         values.put("name", name);
         values.put("required", required ? 1 : 0);
         values.put("sort_order", sortOrder);
+        values.put("is_primary", primaryKey ? 1 : 0);
         values.put("updated_at", updatedAt.toString());
 
         if (existing.isPresent()) {
@@ -118,7 +152,7 @@ public class AndroidNoteColumnRepository implements NoteColumnRepository {
     private NoteColumn mapRow(Cursor cursor) {
         String updatedAtText = getStringOrNull(cursor, "updated_at");
         Instant updatedAt = updatedAtText != null ? Instant.parse(updatedAtText) : Instant.EPOCH;
-        return new NoteColumn(
+        NoteColumn column = new NoteColumn(
             cursor.getLong(cursor.getColumnIndexOrThrow("id")),
             cursor.getString(cursor.getColumnIndexOrThrow("uuid")),
             cursor.getLong(cursor.getColumnIndexOrThrow("book_id")),
@@ -127,6 +161,8 @@ public class AndroidNoteColumnRepository implements NoteColumnRepository {
             cursor.getInt(cursor.getColumnIndexOrThrow("sort_order")),
             updatedAt
         );
+        column.setPrimaryKey(cursor.getInt(cursor.getColumnIndexOrThrow("is_primary")) != 0);
+        return column;
     }
 
     private String getStringOrNull(Cursor cursor, String column) {

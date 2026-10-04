@@ -3,6 +3,7 @@ package com.mydictionary.desktop.screen;
 import com.mydictionary.core.model.Book;
 import com.mydictionary.core.model.Note;
 import com.mydictionary.core.model.NoteColumn;
+import com.mydictionary.core.model.NoteColumns;
 import com.mydictionary.core.model.Tag;
 import com.mydictionary.desktop.db.SqliteBookRepository;
 import com.mydictionary.desktop.db.SqliteDatabase;
@@ -134,7 +135,7 @@ public class BookScreen {
 
         sortCombo = new ComboBox<>();
         sortCombo.getItems().addAll(columns);
-        sortCombo.setValue(columns.get(0));
+        sortCombo.setValue(NoteColumns.primary(columns));
         sortCombo.setConverter(new StringConverter<>() {
             @Override
             public String toString(NoteColumn column) {
@@ -270,7 +271,7 @@ public class BookScreen {
             .filter(n -> matchesKeyword(n, keyword))
             .collect(Collectors.toList());
 
-        NoteColumn sortColumn = sortCombo.getValue() == null ? columns.get(0) : sortCombo.getValue();
+        NoteColumn sortColumn = sortCombo.getValue() == null ? NoteColumns.primary(columns) : sortCombo.getValue();
         Collator collator = Collator.getInstance(Locale.JAPANESE);
         filtered.sort(Comparator.comparing(n -> n.getFieldValue(sortColumn.getId()), collator));
 

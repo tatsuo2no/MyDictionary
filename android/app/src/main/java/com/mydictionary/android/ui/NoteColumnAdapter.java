@@ -6,6 +6,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.CheckBox;
+import android.widget.RadioButton;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -13,6 +14,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.mydictionary.android.R;
 import com.mydictionary.core.model.NoteColumn;
+import com.mydictionary.core.model.NoteColumns;
 
 import java.util.List;
 
@@ -20,6 +22,8 @@ public class NoteColumnAdapter extends RecyclerView.Adapter<NoteColumnAdapter.No
 
     public interface Listener {
         void onRequiredChanged(NoteColumn column, boolean required);
+
+        void onPrimaryChosen(NoteColumn column);
 
         void onRename(NoteColumn column);
 
@@ -44,10 +48,13 @@ public class NoteColumnAdapter extends RecyclerView.Adapter<NoteColumnAdapter.No
     @Override
     public void onBindViewHolder(@NonNull NoteColumnViewHolder holder, int position) {
         NoteColumn column = columns.get(position);
-        boolean isPrimary = position == 0;
+        boolean isPrimary = NoteColumns.isPrimary(column, columns);
 
         holder.nameView.setText(column.getName());
         holder.nameView.setTypeface(null, isPrimary ? Typeface.BOLD : Typeface.NORMAL);
+
+        holder.primaryRadio.setChecked(isPrimary);
+        holder.primaryRadio.setOnClickListener(v -> listener.onPrimaryChosen(column));
 
         // リスナーを外してからselectedを設定しないと、行の使い回し(リサイクル)時に
         // 直前の行の状態変化としてリスナーが誤発火してしまう。
@@ -72,6 +79,7 @@ public class NoteColumnAdapter extends RecyclerView.Adapter<NoteColumnAdapter.No
 
     static class NoteColumnViewHolder extends RecyclerView.ViewHolder {
         final TextView nameView;
+        final RadioButton primaryRadio;
         final CheckBox requiredCheck;
         final Button renameButton;
         final Button deleteButton;
@@ -79,6 +87,7 @@ public class NoteColumnAdapter extends RecyclerView.Adapter<NoteColumnAdapter.No
         NoteColumnViewHolder(@NonNull View itemView) {
             super(itemView);
             nameView = itemView.findViewById(R.id.columnNameView);
+            primaryRadio = itemView.findViewById(R.id.columnPrimaryRadio);
             requiredCheck = itemView.findViewById(R.id.columnRequiredCheck);
             renameButton = itemView.findViewById(R.id.renameColumnButton);
             deleteButton = itemView.findViewById(R.id.deleteColumnButton);
