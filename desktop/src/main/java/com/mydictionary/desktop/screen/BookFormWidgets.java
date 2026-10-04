@@ -72,6 +72,39 @@ final class BookFormWidgets {
         };
     }
 
+    /**
+     * ブックのフォントを選ぶComboBox。組み込みのフォントに続けて、デスクトップ版で追加したフォントを並べる。
+     * 各項目はそのフォントの見た目で表示する。追加フォント以外の選択肢はnullを渡さないこと。
+     * currentは現在のブックの設定（ファイルが無い追加フォントでも、保存で設定が消えないよう選択肢に加える）。
+     */
+    static ComboBox<FontChoice> createFontCombo(FontChoice current) {
+        ComboBox<FontChoice> combo = new ComboBox<>();
+        for (com.mydictionary.core.model.BookFont font : com.mydictionary.core.model.BookFont.values()) {
+            combo.getItems().add(FontChoice.builtin(font));
+        }
+        for (String family : com.mydictionary.desktop.font.FontLibrary.families()) {
+            combo.getItems().add(FontChoice.custom(family));
+        }
+        if (!combo.getItems().contains(current)) {
+            combo.getItems().add(current);
+        }
+        combo.setValue(current);
+        combo.setCellFactory(lv -> fontCell());
+        combo.setButtonCell(fontCell());
+        return combo;
+    }
+
+    private static ListCell<FontChoice> fontCell() {
+        return new ListCell<>() {
+            @Override
+            protected void updateItem(FontChoice choice, boolean empty) {
+                super.updateItem(choice, empty);
+                setText(empty || choice == null ? null : choice.label());
+                setStyle(empty || choice == null ? "" : "-fx-font-family: '" + choice.label() + "';");
+            }
+        };
+    }
+
     /** ノート本文の標準フォントサイズ（pt）を選ぶComboBox。 */
     static ComboBox<Integer> createFontSizeCombo() {
         ComboBox<Integer> combo = new ComboBox<>();

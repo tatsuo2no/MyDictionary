@@ -18,7 +18,6 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
-import javafx.util.StringConverter;
 
 import java.io.File;
 import java.io.IOException;
@@ -35,7 +34,7 @@ public class BookCreateScreen {
 
     private TextField titleField;
     private ComboBox<BookTheme> themeCombo;
-    private ComboBox<BookFont> fontCombo;
+    private ComboBox<FontChoice> fontCombo;
     private ComboBox<Integer> fontSizeCombo;
     private CoverPatternPickerButton coverPicker;
     private TextField tagField;
@@ -63,20 +62,7 @@ public class BookCreateScreen {
         themeCombo.setValue(BookTheme.WHITE);
         themeCombo.valueProperty().addListener((obs, oldValue, newValue) -> coverPicker.refresh());
 
-        fontCombo = new ComboBox<>();
-        fontCombo.getItems().addAll(BookFont.values());
-        fontCombo.setValue(BookFont.MEIRYO_UI);
-        fontCombo.setConverter(new StringConverter<>() {
-            @Override
-            public String toString(BookFont f) {
-                return f == null ? "" : f.getFamilyName();
-            }
-
-            @Override
-            public BookFont fromString(String s) {
-                return null;
-            }
-        });
+        fontCombo = BookFormWidgets.createFontCombo(FontChoice.builtin(BookFont.MEIRYO_UI));
 
         fontSizeCombo = BookFormWidgets.createFontSizeCombo();
         fontSizeCombo.setValue(Book.DEFAULT_FONT_SIZE_PT);
@@ -157,8 +143,9 @@ public class BookCreateScreen {
         }
 
         SqliteBookRepository bookRepository = new SqliteBookRepository(database);
-        Book book = new Book(0, null, shelfId, titleText, themeCombo.getValue(), fontCombo.getValue(),
+        Book book = new Book(0, null, shelfId, titleText, themeCombo.getValue(), BookFont.MEIRYO_UI,
             coverPicker.getValue(), Instant.now(), Instant.now());
+        fontCombo.getValue().applyTo(book);
         book.setFontSizePt(fontSizeCombo.getValue());
         Book saved = bookRepository.insert(book);
 

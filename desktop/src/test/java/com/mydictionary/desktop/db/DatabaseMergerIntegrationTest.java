@@ -201,6 +201,40 @@ class DatabaseMergerIntegrationTest {
     }
 
     @Test
+    void customFontSettingSyncsAcrossSides(@TempDir Path tempDir) {
+        try (SqliteDatabase dbA = new SqliteDatabase(tempDir.resolve("a.db"));
+             SqliteDatabase dbB = new SqliteDatabase(tempDir.resolve("b.db"))) {
+            dbA.initSchema();
+            dbB.initSchema();
+
+            SqliteShelfRepository shelvesA = new SqliteShelfRepository(dbA);
+            SqliteBookRepository booksA = new SqliteBookRepository(dbA);
+            SqliteTagRepository tagsA = new SqliteTagRepository(dbA);
+            SqliteNoteColumnRepository columnsA = new SqliteNoteColumnRepository(dbA);
+            SqliteNoteRepository notesA = new SqliteNoteRepository(dbA);
+
+            SqliteShelfRepository shelvesB = new SqliteShelfRepository(dbB);
+            SqliteBookRepository booksB = new SqliteBookRepository(dbB);
+            SqliteTagRepository tagsB = new SqliteTagRepository(dbB);
+            SqliteNoteColumnRepository columnsB = new SqliteNoteColumnRepository(dbB);
+            SqliteNoteRepository notesB = new SqliteNoteRepository(dbB);
+
+            Shelf shelf = shelvesA.insert(new Shelf(0, null, "シェルフ",
+                BookCover.ofPattern(BookCover.Pattern.PLAIN), Instant.now(), Instant.now()));
+            Book bookA = new Book(0, null, shelf.getId(), "ブック", BookTheme.GREEN, BookFont.MEIRYO_UI,
+                BookCover.ofPattern(BookCover.Pattern.PLAIN), Instant.now(), Instant.now());
+            bookA.setCustomFontFamily("BIZ UDPGothic");
+            bookA = booksA.insert(bookA);
+
+            DatabaseMerger.merge(shelvesA, booksA, tagsA, columnsA, notesA,
+                shelvesB, booksB, tagsB, columnsB, notesB);
+
+            Book bookB = booksB.findByUuid(bookA.getUuid()).orElseThrow();
+            assertEquals("BIZ UDPGothic", bookB.getCustomFontFamily());
+        }
+    }
+
+    @Test
     void changingThePrimaryKeyColumnSyncsAcrossSides(@TempDir Path tempDir) {
         try (SqliteDatabase dbA = new SqliteDatabase(tempDir.resolve("a.db"));
              SqliteDatabase dbB = new SqliteDatabase(tempDir.resolve("b.db"))) {

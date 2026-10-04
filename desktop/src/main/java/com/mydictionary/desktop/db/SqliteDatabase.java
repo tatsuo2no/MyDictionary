@@ -61,6 +61,7 @@ public class SqliteDatabase implements AutoCloseable {
                 theme TEXT NOT NULL,
                 font TEXT NOT NULL,
                 font_size_pt INTEGER,
+                custom_font TEXT,
                 icon_preset TEXT,
                 icon_custom_path TEXT,
                 sort_order INTEGER,
@@ -162,6 +163,7 @@ public class SqliteDatabase implements AutoCloseable {
         addColumnIfMissing("books", "sort_order", "INTEGER");
         addColumnIfMissing("books", "shelf_id", "INTEGER");
         addColumnIfMissing("books", "font_size_pt", "INTEGER");
+        addColumnIfMissing("books", "custom_font", "TEXT");
         addColumnIfMissing("tags", "uuid", "TEXT");
         addColumnIfMissing("tags", "updated_at", "TEXT");
         addColumnIfMissing("notes", "uuid", "TEXT");

@@ -38,6 +38,7 @@ public interface BookRepository {
      * （通常のinsert()と違い、uuidや日時を自動生成し直さない）。shelfIdはこの端末での
      * ローカルなシェルフID（呼び出し側がシェルフのuuid解決を済ませてから渡す）。
      */
-    Book upsertFromSync(String uuid, long shelfId, String title, BookTheme theme, BookFont font, int fontSizePt,
-                         BookCover cover, Instant createdAt, Instant updatedAt);
+    Book upsertFromSync(String uuid, long shelfId, String title, BookTheme theme, BookFont font,
+                         String customFontFamily, int fontSizePt, BookCover cover, Instant createdAt,
+                         Instant updatedAt);
 }

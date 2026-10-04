@@ -38,6 +38,8 @@ public class MainApp extends Application {
         });
 
         Files.createDirectories(IMAGE_DIR);
+        Files.createDirectories(com.mydictionary.desktop.font.FontLibrary.directory());
+        com.mydictionary.desktop.font.FontLibrary.registerWithJavaFx();
 
         SqliteDatabase database = new SqliteDatabase(APP_DATA_DIR.resolve("mydictionary.db"));
         database.initSchema();

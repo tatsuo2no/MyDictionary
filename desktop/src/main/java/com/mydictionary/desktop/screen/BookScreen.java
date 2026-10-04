@@ -77,7 +77,7 @@ public class BookScreen {
             .orElseThrow(() -> new IllegalStateException("ブックが見つかりません: " + bookId));
         columns = columnRepository.findByBookId(bookId);
 
-        view.setStyle("-fx-font-family: '" + book.getFont().getFamilyName() + "';");
+        view.setStyle("-fx-font-family: '" + book.getEffectiveFontFamily() + "';");
 
         view.setTop(buildHeader());
         view.setCenter(buildTable());

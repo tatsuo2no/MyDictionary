@@ -65,11 +65,11 @@ public final class DatabaseMerger {
             long shelfIdForB = shelfIdByUuidB.get(winnerShelfUuid);
 
             Book resolvedA = sideABooks.upsertFromSync(uuid, shelfIdForA, winner.getTitle(), winner.getTheme(),
-                winner.getFont(), winner.getFontSizePt(), winner.getCover(), winner.getCreatedAt(),
-                winner.getUpdatedAt());
+                winner.getFont(), winner.getCustomFontFamily(), winner.getFontSizePt(), winner.getCover(),
+                winner.getCreatedAt(), winner.getUpdatedAt());
             Book resolvedB = sideBBooks.upsertFromSync(uuid, shelfIdForB, winner.getTitle(), winner.getTheme(),
-                winner.getFont(), winner.getFontSizePt(), winner.getCover(), winner.getCreatedAt(),
-                winner.getUpdatedAt());
+                winner.getFont(), winner.getCustomFontFamily(), winner.getFontSizePt(), winner.getCover(),
+                winner.getCreatedAt(), winner.getUpdatedAt());
 
             mergeTags(sideATags, resolvedA.getId(), sideBTags, resolvedB.getId());
 

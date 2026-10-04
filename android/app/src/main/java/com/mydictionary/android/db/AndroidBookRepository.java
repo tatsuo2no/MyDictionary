@@ -125,7 +125,8 @@ public class AndroidBookRepository implements BookRepository {
 
     @Override
     public Book upsertFromSync(String uuid, long shelfId, String title, BookTheme theme, BookFont font,
-                                int fontSizePt, BookCover cover, Instant createdAt, Instant updatedAt) {
+                                String customFontFamily, int fontSizePt, BookCover cover, Instant createdAt,
+                                Instant updatedAt) {
         SQLiteDatabase db = dbHelper.getWritableDatabase();
         Optional<Book> existing = findByUuid(uuid);
 
@@ -134,6 +135,7 @@ public class AndroidBookRepository implements BookRepository {
         values.put("title", title);
         values.put("theme", theme.name());
         values.put("font", font.name());
+        values.put("custom_font", customFontFamily);
         values.put("font_size_pt", fontSizePt);
         if (cover.isCustom()) {
             values.putNull("icon_preset");
@@ -162,6 +164,7 @@ public class AndroidBookRepository implements BookRepository {
         values.put("title", book.getTitle());
         values.put("theme", book.getTheme().name());
         values.put("font", book.getFont().name());
+        values.put("custom_font", book.getCustomFontFamily());
         values.put("font_size_pt", book.getFontSizePt());
         if (book.getCover().isCustom()) {
             values.putNull("icon_preset");
@@ -193,6 +196,7 @@ public class AndroidBookRepository implements BookRepository {
         );
         book.setSortOrder(cursor.getInt(cursor.getColumnIndexOrThrow("sort_order")));
         book.setFontSizePt(resolveFontSizePt(cursor));
+        book.setCustomFontFamily(getStringOrNull(cursor, "custom_font"));
         return book;
     }
 

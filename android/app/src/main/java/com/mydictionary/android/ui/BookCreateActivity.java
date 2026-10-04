@@ -39,6 +39,7 @@ public class BookCreateActivity extends AppCompatActivity {
     private EditText titleField;
     private Spinner themeSpinner;
     private Spinner fontSpinner;
+    private FontChoices fontChoices;
     private Spinner fontSizeSpinner;
     private CoverPatternPickerButton coverPicker;
     private EditText tagField;
@@ -68,8 +69,10 @@ public class BookCreateActivity extends AppCompatActivity {
         errorLabel = findViewById(R.id.errorLabel);
 
         themeSpinner.setAdapter(new BookThemeSpinnerAdapter(this, BookTheme.values()));
+        fontChoices = new FontChoices(this, null);
         fontSpinner.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item,
-            fontLabels()));
+            fontChoices.labels()));
+        fontSpinner.setSelection(BookFont.MEIRYO_UI.ordinal());
         fontSizeSpinner.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item,
             fontSizeLabels()));
         fontSizeSpinner.setSelection(defaultFontSizeIndex());
@@ -107,14 +110,6 @@ public class BookCreateActivity extends AppCompatActivity {
         } catch (IOException e) {
             errorLabel.setText(getString(R.string.error_cover_image_save_failed, e.getMessage()));
         }
-    }
-
-    private List<String> fontLabels() {
-        List<String> labels = new ArrayList<>();
-        for (BookFont font : BookFont.values()) {
-            labels.add(font.getFamilyName());
-        }
-        return labels;
     }
 
     private List<String> fontSizeLabels() {
@@ -159,11 +154,11 @@ public class BookCreateActivity extends AppCompatActivity {
         }
 
         BookTheme theme = BookTheme.values()[themeSpinner.getSelectedItemPosition()];
-        BookFont font = BookFont.values()[fontSpinner.getSelectedItemPosition()];
         int fontSizePt = Book.AVAILABLE_FONT_SIZES_PT[fontSizeSpinner.getSelectedItemPosition()];
 
-        Book book = new Book(0, null, shelfId, titleText, theme, font, coverPicker.getValue(),
+        Book book = new Book(0, null, shelfId, titleText, theme, BookFont.MEIRYO_UI, coverPicker.getValue(),
             Instant.now(), Instant.now());
+        fontChoices.applyTo(fontSpinner.getSelectedItemPosition(), book);
         book.setFontSizePt(fontSizePt);
         Book saved = bookRepository.insert(book);
 

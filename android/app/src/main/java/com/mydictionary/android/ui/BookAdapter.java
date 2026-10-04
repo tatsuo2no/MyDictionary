@@ -62,7 +62,11 @@ public class BookAdapter extends RecyclerView.Adapter<BookAdapter.BookViewHolder
     public void onBindViewHolder(@NonNull BookViewHolder holder, int position) {
         Book book = books.get(position);
         holder.titleView.setText(book.getTitle());
-        holder.titleView.setTypeface(Typeface.create(book.getFont().getFamilyName(), Typeface.NORMAL));
+        Typeface customTypeface = book.getCustomFontFamily() == null ? null
+            : com.mydictionary.android.CustomFontFiles.typeface(holder.itemView.getContext(),
+                book.getCustomFontFamily());
+        holder.titleView.setTypeface(customTypeface != null ? customTypeface
+            : Typeface.create(book.getFont().getFamilyName(), Typeface.NORMAL));
 
         Drawable background = holder.iconView.getBackground().mutate();
         if (background instanceof GradientDrawable) {

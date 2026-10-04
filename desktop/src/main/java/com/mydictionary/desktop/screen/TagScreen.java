@@ -60,7 +60,7 @@ public class TagScreen {
         book = new SqliteBookRepository(database).findById(bookId)
             .orElseThrow(() -> new IllegalStateException("ブックが見つかりません: " + bookId));
 
-        view.setStyle("-fx-font-family: '" + book.getFont().getFamilyName() + "';");
+        view.setStyle("-fx-font-family: '" + book.getEffectiveFontFamily() + "';");
 
         Label title = new Label(book.getTitle() + " のタグ");
         title.getStyleClass().add("screen-title");

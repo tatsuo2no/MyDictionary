@@ -111,7 +111,7 @@ public class NoteCreateScreen {
                 .orElseThrow(() -> new IllegalStateException("ノートが見つかりません: " + noteId));
         }
 
-        view.setStyle("-fx-font-family: '" + book.getFont().getFamilyName() + "';");
+        view.setStyle("-fx-font-family: '" + book.getEffectiveFontFamily() + "';");
         view.setPadding(new Insets(16));
 
         editRoot = buildEditRoot();
@@ -193,8 +193,13 @@ public class NoteCreateScreen {
         VBox.setVgrow(bodyArea, Priority.ALWAYS);
 
         NoteFormatToolbar formatToolbar = new NoteFormatToolbar(bodyArea,
-            () -> java.util.Arrays.stream(com.mydictionary.core.model.BookFont.values())
-                .map(com.mydictionary.core.model.BookFont::getFamilyName).toList(),
+            () -> {
+                List<String> families = new ArrayList<>(java.util.Arrays.stream(
+                    com.mydictionary.core.model.BookFont.values())
+                    .map(com.mydictionary.core.model.BookFont::getFamilyName).toList());
+                families.addAll(com.mydictionary.desktop.font.FontLibrary.families());
+                return families;
+            },
             this::onInsertImage, this::showPreview);
 
         VBox rightPanel = new VBox(8, new Label("本文（ツールバーで書式を設定できます。Markdown風記法も直接入力できます）"),
@@ -435,7 +440,8 @@ public class NoteCreateScreen {
         String bodyAppearance = NoteFormWidgets.buildBodyStyleCss(
             backgroundThemeCombo.getValue(), backgroundImageFileName, textColorCombo.getValue());
         String document = "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"/><style>"
-            + "body{font-family:'" + book.getFont().getFamilyName() + "', sans-serif; font-size:"
+            + com.mydictionary.desktop.font.FontLibrary.fontFaceCss()
+            + "body{font-family:'" + book.getEffectiveFontFamily() + "', sans-serif; font-size:"
             + book.getFontSizePt() + "pt; padding:12px; line-height:1.6;"
             + bodyAppearance + "}"
             + "table{border-collapse:collapse;} td,th{border:1px solid #999;padding:4px 8px;}"

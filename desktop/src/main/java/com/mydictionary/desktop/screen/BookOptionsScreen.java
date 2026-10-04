@@ -2,7 +2,6 @@ package com.mydictionary.desktop.screen;
 
 import com.mydictionary.core.model.Book;
 import com.mydictionary.core.model.BookCover;
-import com.mydictionary.core.model.BookFont;
 import com.mydictionary.core.model.BookTheme;
 import com.mydictionary.core.model.Shelf;
 import com.mydictionary.core.validation.NameValidator;
@@ -23,7 +22,6 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
-import javafx.util.StringConverter;
 
 import java.io.File;
 import java.io.IOException;
@@ -43,7 +41,7 @@ public class BookOptionsScreen {
     private Book book;
     private TextField titleField;
     private ComboBox<BookTheme> themeCombo;
-    private ComboBox<BookFont> fontCombo;
+    private ComboBox<FontChoice> fontCombo;
     private ComboBox<Integer> fontSizeCombo;
     private ComboBox<Shelf> shelfCombo;
     private CoverPatternPickerButton coverPicker;
@@ -65,7 +63,7 @@ public class BookOptionsScreen {
         book = bookRepository.findById(bookId)
             .orElseThrow(() -> new IllegalStateException("ブックが見つかりません: " + bookId));
 
-        view.setStyle("-fx-font-family: '" + book.getFont().getFamilyName() + "';");
+        view.setStyle("-fx-font-family: '" + book.getEffectiveFontFamily() + "';");
         view.setPadding(new Insets(16));
 
         Label title = new Label("ブックオプション");
@@ -82,20 +80,7 @@ public class BookOptionsScreen {
         themeCombo.setValue(book.getTheme());
         themeCombo.valueProperty().addListener((obs, oldValue, newValue) -> coverPicker.refresh());
 
-        fontCombo = new ComboBox<>();
-        fontCombo.getItems().addAll(BookFont.values());
-        fontCombo.setValue(book.getFont());
-        fontCombo.setConverter(new StringConverter<>() {
-            @Override
-            public String toString(BookFont f) {
-                return f == null ? "" : f.getFamilyName();
-            }
-
-            @Override
-            public BookFont fromString(String s) {
-                return null;
-            }
-        });
+        fontCombo = BookFormWidgets.createFontCombo(FontChoice.of(book));
 
         fontSizeCombo = BookFormWidgets.createFontSizeCombo();
         fontSizeCombo.setValue(book.getFontSizePt());
@@ -155,7 +140,7 @@ public class BookOptionsScreen {
 
         book.setTitle(titleText);
         book.setTheme(themeCombo.getValue());
-        book.setFont(fontCombo.getValue());
+        fontCombo.getValue().applyTo(book);
         book.setFontSizePt(fontSizeCombo.getValue());
         book.setCover(coverPicker.getValue());
         if (shelfCombo.getValue() != null) {

@@ -74,6 +74,7 @@ public class NoteCreateActivity extends AppCompatActivity {
 
     private List<NoteColumn> columns;
     private int bookFontSizePt;
+    private String bookFontFamily;
     private final Map<Long, EditText> columnFields = new LinkedHashMap<>();
 
     private EditText bodyField;
@@ -114,6 +115,7 @@ public class NoteCreateActivity extends AppCompatActivity {
         Book book = new AndroidBookRepository(MyDictionaryApplication.from(this).getDbHelper()).findById(bookId)
             .orElseThrow(() -> new IllegalStateException("ブックが見つかりません: " + bookId));
         bookFontSizePt = book.getFontSizePt();
+        bookFontFamily = book.getEffectiveFontFamily();
         columns = columnRepository.findByBookId(bookId);
 
         if (noteId != null) {
@@ -147,6 +149,8 @@ public class NoteCreateActivity extends AppCompatActivity {
         WebViewAssetLoader previewAssetLoader = new WebViewAssetLoader.Builder()
             .addPathHandler(IMAGE_ASSET_PATH,
                 new WebViewAssetLoader.InternalStoragePathHandler(this, AppPaths.getImageDir(this)))
+            .addPathHandler(com.mydictionary.android.CustomFontFiles.ASSET_PATH,
+                com.mydictionary.android.CustomFontFiles.pathHandler(this))
             .build();
         previewWebView.setWebViewClient(new WebViewClient() {
             @Override
@@ -165,8 +169,7 @@ public class NoteCreateActivity extends AppCompatActivity {
 
         findViewById(R.id.backButton).setOnClickListener(v -> onBack());
         new NoteFormatToolbar(this, findViewById(R.id.formatToolbarContainer), bodyField,
-            () -> java.util.Arrays.stream(com.mydictionary.core.model.BookFont.values())
-                .map(com.mydictionary.core.model.BookFont::getFamilyName).collect(java.util.stream.Collectors.toList()),
+            () -> FontChoices.toolbarFamilies(this),
             () -> pickImageLauncher.launch("image/*"));
         findViewById(R.id.previewButton).setOnClickListener(v -> updatePreview());
         findViewById(R.id.saveButton).setOnClickListener(v -> onSave());
@@ -410,7 +413,9 @@ public class NoteCreateActivity extends AppCompatActivity {
         String bodyAppearance = NoteAppearance.buildBodyStyleCss(backgroundTheme, imageUrl, textColor);
 
         String document = "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"/><style>"
-            + "body{font-size:" + bookFontSizePt + "pt; padding:8px; line-height:1.6;" + bodyAppearance + "}"
+            + com.mydictionary.android.CustomFontFiles.fontFaceCss(this)
+            + "body{font-family:'" + bookFontFamily + "', sans-serif; font-size:" + bookFontSizePt
+            + "pt; padding:8px; line-height:1.6;" + bodyAppearance + "}"
             + "table{border-collapse:collapse;} td,th{border:1px solid #999;padding:4px 8px;}"
             + "blockquote{border-left:4px solid #999;margin:8px 0;padding:4px 12px;color:#555;}"
             + "pre{background:#f4f4f4;padding:8px;overflow-x:auto;}"

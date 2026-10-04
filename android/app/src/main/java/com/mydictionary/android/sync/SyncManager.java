@@ -18,6 +18,7 @@ import com.mydictionary.android.db.AndroidNoteRepository;
 import com.mydictionary.android.db.AndroidShelfRepository;
 import com.mydictionary.android.db.AndroidTagRepository;
 import com.mydictionary.android.db.DictionaryDbHelper;
+import com.mydictionary.core.font.CustomFonts;
 import com.mydictionary.core.sync.DatabaseMerger;
 
 import java.io.File;
@@ -134,7 +135,9 @@ public final class SyncManager {
                     .execute();
             }
 
-            syncImages(context, drive, folderId);
+            syncFolder(drive, folderId, "images", AppPaths.getImageDir(context));
+            // デスクトップ版で追加されたフォント（fontsフォルダ）も、画像と同じ方法で両方向に共有する。
+            syncFolder(drive, folderId, CustomFonts.FOLDER_NAME, AppPaths.getFontDir(context));
         } finally {
             //noinspection ResultOfMethodCallIgnored
             remoteDbCopy.delete();
@@ -187,25 +190,32 @@ public final class SyncManager {
         return files.isEmpty() ? null : files.get(0);
     }
 
-    private static void syncImages(Context context, Drive drive, String folderId) throws IOException {
-        com.google.api.services.drive.model.File imagesFolder = findChild(drive, folderId, "images");
-        String imagesFolderId;
-        if (imagesFolder == null) {
+    /**
+     * 共有フォルダ直下の子フォルダ（images・fonts）とローカルのフォルダを、ファイル名ベースで両方向に
+     * コピーする。同名のファイルが両方にある場合は何もしない（上書きしない）。ダウンロードは一時ファイルに
+     * 書いてから名前を付け直すので、通信が途中で切れても壊れたファイルが本来の名前で残らない
+     * （大きなフォントファイルで特に重要）。
+     */
+    private static void syncFolder(Drive drive, String folderId, String childName, File localDir)
+            throws IOException {
+        com.google.api.services.drive.model.File remoteFolder = findChild(drive, folderId, childName);
+        String remoteFolderId;
+        if (remoteFolder == null) {
             com.google.api.services.drive.model.File metadata = new com.google.api.services.drive.model.File();
-            metadata.setName("images");
+            metadata.setName(childName);
             metadata.setMimeType("application/vnd.google-apps.folder");
             metadata.setParents(Collections.singletonList(folderId));
-            imagesFolderId = drive.files().create(metadata)
+            remoteFolderId = drive.files().create(metadata)
                 .setSupportsAllDrives(true)
                 .setFields("id")
                 .execute()
                 .getId();
         } else {
-            imagesFolderId = imagesFolder.getId();
+            remoteFolderId = remoteFolder.getId();
         }
 
-        FileList remoteImages = drive.files().list()
-            .setQ("'" + imagesFolderId + "' in parents and trashed = false")
+        FileList remoteFiles = drive.files().list()
+            .setQ("'" + remoteFolderId + "' in parents and trashed = false")
             .setFields("files(id, name)")
             .setSpaces("drive")
             .setCorpora("allDrives")
@@ -213,20 +223,20 @@ public final class SyncManager {
             .setIncludeItemsFromAllDrives(true)
             .execute();
         Map<String, String> remoteIdByName = new HashMap<>();
-        for (com.google.api.services.drive.model.File file : remoteImages.getFiles()) {
+        for (com.google.api.services.drive.model.File file : remoteFiles.getFiles()) {
             remoteIdByName.put(file.getName(), file.getId());
         }
 
-        File localImagesDir = AppPaths.getImageDir(context);
-        File[] localFiles = localImagesDir.listFiles();
+        File[] localFiles = localDir.listFiles();
         if (localFiles != null) {
             for (File localFile : localFiles) {
-                if (!localFile.isFile() || remoteIdByName.containsKey(localFile.getName())) {
+                if (!localFile.isFile() || localFile.getName().endsWith(".part")
+                    || remoteIdByName.containsKey(localFile.getName())) {
                     continue;
                 }
                 com.google.api.services.drive.model.File metadata = new com.google.api.services.drive.model.File();
                 metadata.setName(localFile.getName());
-                metadata.setParents(Collections.singletonList(imagesFolderId));
+                metadata.setParents(Collections.singletonList(remoteFolderId));
                 drive.files().create(metadata, new FileContent("application/octet-stream", localFile))
                     .setSupportsAllDrives(true)
                     .execute();
@@ -234,13 +244,24 @@ public final class SyncManager {
         }
 
         for (Map.Entry<String, String> entry : remoteIdByName.entrySet()) {
-            File localTarget = new File(localImagesDir, entry.getKey());
-            if (!localTarget.exists()) {
-                try (OutputStream out = new FileOutputStream(localTarget)) {
-                    drive.files().get(entry.getValue())
-                        .setSupportsAllDrives(true)
-                        .executeMediaAndDownloadTo(out);
-                }
+            File localTarget = new File(localDir, entry.getKey());
+            if (localTarget.exists()) {
+                continue;
+            }
+            File temp = new File(localDir, entry.getKey() + ".part");
+            try (OutputStream out = new FileOutputStream(temp)) {
+                drive.files().get(entry.getValue())
+                    .setSupportsAllDrives(true)
+                    .executeMediaAndDownloadTo(out);
+            } catch (IOException e) {
+                //noinspection ResultOfMethodCallIgnored
+                temp.delete();
+                throw e;
+            }
+            if (!temp.renameTo(localTarget)) {
+                //noinspection ResultOfMethodCallIgnored
+                temp.delete();
+                throw new IOException("ダウンロードしたファイルの保存に失敗しました: " + entry.getKey());
             }
         }
     }

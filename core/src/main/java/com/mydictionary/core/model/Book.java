@@ -27,6 +27,13 @@ public class Book {
     private int fontSizePt = DEFAULT_FONT_SIZE_PT;
 
     /**
+     * デスクトップ版で追加したフォントを使う場合のファミリー名（組み込みのfontを使うならnull）。
+     * 既定値を持つ任意の設定なので、フィールド+setterで持つ。追加フォント自体のファイルは
+     * 同期フォルダのfontsフォルダで共有されるため、この名前だけで両OSが同じフォントを使える。
+     */
+    private String customFontFamily;
+
+    /**
      * uuidはデバイス間同期でブックの同一性を判定するための識別子。
      * 新規作成してinsert()に渡す場合はnullでよい（リポジトリが自動採番する）。
      * shelfIdはブックが必ず1つ属するシェルフのID（他のシェルフへ移動する場合はsetShelfId()で変更する）。
@@ -114,6 +121,20 @@ public class Book {
 
     public void setSortOrder(int sortOrder) {
         this.sortOrder = sortOrder;
+    }
+
+    public String getCustomFontFamily() {
+        return customFontFamily;
+    }
+
+    public void setCustomFontFamily(String customFontFamily) {
+        this.customFontFamily = customFontFamily == null || customFontFamily.isBlank() ? null
+            : com.mydictionary.core.font.CustomFonts.sanitizeFamily(customFontFamily);
+    }
+
+    /** 画面・ノート本文で実際に使うフォントのファミリー名（追加フォントが指定されていればそれ）。 */
+    public String getEffectiveFontFamily() {
+        return customFontFamily != null ? customFontFamily : font.getFamilyName();
     }
 
     public int getFontSizePt() {

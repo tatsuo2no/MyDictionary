@@ -86,7 +86,7 @@ public class NoteScreen {
         columns = new SqliteNoteColumnRepository(database).findByBookId(bookId);
 
         BorderPane mainLayout = new BorderPane();
-        mainLayout.setStyle("-fx-font-family: '" + book.getFont().getFamilyName() + "';");
+        mainLayout.setStyle("-fx-font-family: '" + book.getEffectiveFontFamily() + "';");
         mainLayout.setTop(buildHeader());
         mainLayout.setCenter(buildWebView());
 
@@ -177,7 +177,8 @@ public class NoteScreen {
         String bodyAppearance = NoteFormWidgets.buildBodyStyleCss(
             note.getBackgroundTheme(), note.getBackgroundImageFileName(), note.getTextColor());
         return "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"/><style>"
-            + "body{font-family:'" + book.getFont().getFamilyName() + "', sans-serif; font-size:"
+            + com.mydictionary.desktop.font.FontLibrary.fontFaceCss()
+            + "body{font-family:'" + book.getEffectiveFontFamily() + "', sans-serif; font-size:"
             + book.getFontSizePt() + "pt; padding:16px; line-height:1.7;"
             + bodyAppearance + "}"
             + "table{border-collapse:collapse;} td,th{border:1px solid #999;padding:4px 8px;}"

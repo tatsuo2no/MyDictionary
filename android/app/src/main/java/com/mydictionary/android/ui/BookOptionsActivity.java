@@ -49,6 +49,7 @@ public class BookOptionsActivity extends AppCompatActivity {
     private Spinner shelfSpinner;
     private Spinner themeSpinner;
     private Spinner fontSpinner;
+    private FontChoices fontChoices;
     private Spinner fontSizeSpinner;
     private CoverPatternPickerButton coverPicker;
     private TextView errorLabel;
@@ -96,15 +97,10 @@ public class BookOptionsActivity extends AppCompatActivity {
         themeSpinner.setAdapter(new BookThemeSpinnerAdapter(this, BookTheme.values()));
         themeSpinner.setSelection(themeSelectedIndex);
 
-        int fontSelectedIndex = 0;
-        for (int i = 0; i < BookFont.values().length; i++) {
-            if (BookFont.values()[i] == book.getFont()) {
-                fontSelectedIndex = i;
-            }
-        }
+        fontChoices = new FontChoices(this, book.getCustomFontFamily());
         fontSpinner.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item,
-            fontLabels()));
-        fontSpinner.setSelection(fontSelectedIndex);
+            fontChoices.labels()));
+        fontSpinner.setSelection(fontChoices.indexOf(book));
 
         int fontSizeSelectedIndex = 0;
         int[] fontSizes = Book.AVAILABLE_FONT_SIZES_PT;
@@ -155,14 +151,6 @@ public class BookOptionsActivity extends AppCompatActivity {
         findViewById(R.id.backButton).setOnClickListener(v -> finish());
     }
 
-    private List<String> fontLabels() {
-        List<String> labels = new java.util.ArrayList<>();
-        for (BookFont font : BookFont.values()) {
-            labels.add(font.getFamilyName());
-        }
-        return labels;
-    }
-
     private void onSave() {
         String titleText = titleField.getText() == null ? "" : titleField.getText().toString().trim();
         if (!NameValidator.isValid(titleText)) {
@@ -173,7 +161,7 @@ public class BookOptionsActivity extends AppCompatActivity {
         book.setTitle(titleText);
         book.setShelfId(allShelves.get(shelfSpinner.getSelectedItemPosition()).getId());
         book.setTheme(BookTheme.values()[themeSpinner.getSelectedItemPosition()]);
-        book.setFont(BookFont.values()[fontSpinner.getSelectedItemPosition()]);
+        fontChoices.applyTo(fontSpinner.getSelectedItemPosition(), book);
         book.setFontSizePt(Book.AVAILABLE_FONT_SIZES_PT[fontSizeSpinner.getSelectedItemPosition()]);
         book.setCover(coverPicker.getValue());
         bookRepository.update(book);

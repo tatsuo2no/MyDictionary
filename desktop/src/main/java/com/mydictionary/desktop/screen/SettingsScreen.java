@@ -2,16 +2,21 @@ package com.mydictionary.desktop.screen;
 
 import com.mydictionary.desktop.DesktopSettings;
 import com.mydictionary.desktop.MainApp;
+import com.mydictionary.desktop.font.FontImporter;
+import com.mydictionary.desktop.font.FontLibrary;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.stage.DirectoryChooser;
+import javafx.stage.FileChooser;
 
 import java.io.IOException;
 import java.nio.file.FileVisitResult;
@@ -35,6 +40,7 @@ public class SettingsScreen {
     private final SceneNavigator navigator;
     private final VBox view = new VBox(16);
     private Label currentPathLabel;
+    private Label addedFontsLabel;
 
     public SettingsScreen(SceneNavigator navigator) {
         this.navigator = navigator;
@@ -77,8 +83,66 @@ public class SettingsScreen {
         Button changeButton = new Button("フォルダを変更...");
         changeButton.setOnAction(e -> onChangeFolder());
 
+        Label fontTitle = new Label("フォントの追加");
+        fontTitle.setStyle("-fx-font-weight: bold;");
+        Label fontDescription = new Label(
+            "好きなフォントのファイル（.ttc / .woff / .woff2 / .ttf / .otf）を追加できます。追加したフォントは、\n"
+                + "ブックオプションの「ブックフォント」と、ノート編集の書式ツールバー「フォント」で選べます。\n"
+                + "ファイルは共通の形式に変換して上記のデータ保存先フォルダの「fonts」に保存されるため、\n"
+                + "Android版でも「同期」後に同じフォントを使えます（フォントの追加はデスクトップ版のみです）。\n"
+                + "フォントによってはライセンスで埋め込み・再配布が制限されています。ご自身で使用できる\n"
+                + "ものを追加してください。");
+        fontDescription.setWrapText(true);
+        Button addFontButton = new Button("フォントを追加...");
+        addFontButton.setOnAction(e -> onAddFont());
+        addedFontsLabel = new Label();
+        addedFontsLabel.setWrapText(true);
+        refreshAddedFonts();
+
+        // 説明文が長く、ウィンドウが低いと下の項目が見えなくなるため、見出し以外はスクロールできるようにする。
+        VBox content = new VBox(16, description, currentPathLabel, changeButton,
+            new javafx.scene.control.Separator(), fontTitle, fontDescription, addFontButton, addedFontsLabel);
+        ScrollPane scroll = new ScrollPane(content);
+        scroll.setFitToWidth(true);
+        scroll.setStyle("-fx-background-color: transparent;");
+        VBox.setVgrow(scroll, Priority.ALWAYS);
+
         view.setPadding(new Insets(16));
-        view.getChildren().addAll(header, description, currentPathLabel, changeButton);
+        view.getChildren().addAll(header, scroll);
+    }
+
+    private void refreshAddedFonts() {
+        List<String> families = FontLibrary.families();
+        addedFontsLabel.setText(families.isEmpty() ? "追加したフォント: なし"
+            : "追加したフォント: " + String.join("、", families));
+    }
+
+    private void onAddFont() {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("追加するフォントファイルを選択");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(
+            "フォントファイル", "*.ttc", "*.woff", "*.woff2", "*.ttf", "*.otf"));
+        var file = chooser.showOpenDialog(view.getScene() != null ? view.getScene().getWindow() : null);
+        if (file == null) {
+            return;
+        }
+        try {
+            List<FontImporter.Imported> imported = FontLibrary.importFont(file.toPath());
+            refreshAddedFonts();
+            StringBuilder message = new StringBuilder("次のフォントを追加しました。\n");
+            for (FontImporter.Imported font : imported) {
+                message.append("\n・").append(font.family()).append("（太さ ").append(font.weight())
+                    .append(font.italic() ? "・斜体" : "").append("）");
+            }
+            message.append("\n\nAndroid版では、次回の「同期」で利用できるようになります。");
+            Alert done = new Alert(Alert.AlertType.INFORMATION, message.toString());
+            done.setHeaderText(null);
+            done.showAndWait();
+        } catch (IOException e) {
+            Alert error = new Alert(Alert.AlertType.ERROR, "フォントを追加できませんでした: " + e.getMessage());
+            error.setHeaderText(null);
+            error.showAndWait();
+        }
     }
 
     private void onChangeFolder() {

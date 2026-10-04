@@ -154,6 +154,8 @@ public class NoteActivity extends AppCompatActivity {
         WebViewAssetLoader assetLoader = new WebViewAssetLoader.Builder()
             .addPathHandler(IMAGE_ASSET_PATH,
                 new WebViewAssetLoader.InternalStoragePathHandler(this, AppPaths.getImageDir(this)))
+            .addPathHandler(com.mydictionary.android.CustomFontFiles.ASSET_PATH,
+                com.mydictionary.android.CustomFontFiles.pathHandler(this))
             .build();
 
         webView.setWebViewClient(new WebViewClient() {
@@ -177,7 +179,9 @@ public class NoteActivity extends AppCompatActivity {
             note.getBackgroundTheme(), imageUrl, note.getTextColor());
 
         String document = "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"/><style>"
-            + "body{font-size:" + book.getFontSizePt() + "pt; padding:16px; line-height:1.7;" + bodyAppearance + "}"
+            + com.mydictionary.android.CustomFontFiles.fontFaceCss(this)
+            + "body{font-family:'" + book.getEffectiveFontFamily() + "', sans-serif; font-size:"
+            + book.getFontSizePt() + "pt; padding:16px; line-height:1.7;" + bodyAppearance + "}"
             + "table{border-collapse:collapse;} td,th{border:1px solid #999;padding:4px 8px;}"
             + "blockquote{border-left:4px solid #999;margin:8px 0;padding:4px 12px;color:#555;}"
             + "pre{background:#f4f4f4;padding:8px;overflow-x:auto;}"

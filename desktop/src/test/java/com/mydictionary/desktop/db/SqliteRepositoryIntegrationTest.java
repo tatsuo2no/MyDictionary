@@ -400,6 +400,38 @@ class SqliteRepositoryIntegrationTest {
     }
 
     @Test
+    void customFontFamilyIsSavedReadBackAndCanBeCleared(@TempDir Path tempDir) {
+        try (SqliteDatabase database = new SqliteDatabase(tempDir.resolve("test.db"))) {
+            database.initSchema();
+            SqliteBookRepository repository = new SqliteBookRepository(database);
+            Book book = insertBook(database);
+            assertEquals(null, book.getCustomFontFamily());
+            assertEquals(BookFont.MEIRYO_UI.getFamilyName(), book.getEffectiveFontFamily());
+
+            book.setCustomFontFamily("BIZ UDPGothic");
+            repository.update(book);
+            Book saved = repository.findById(book.getId()).orElseThrow();
+            assertEquals("BIZ UDPGothic", saved.getCustomFontFamily());
+            assertEquals("BIZ UDPGothic", saved.getEffectiveFontFamily());
+
+            saved.setCustomFontFamily(null);
+            repository.update(saved);
+            assertEquals(null, repository.findById(book.getId()).orElseThrow().getCustomFontFamily());
+        }
+    }
+
+    @Test
+    void customFontFamilyFromOutsideIsMadeSafeForCssAndFileNames() {
+        Book book = new Book(0, null, 1, "t", BookTheme.GREEN, BookFont.MEIRYO_UI,
+            BookCover.ofPattern(BookCover.Pattern.PLAIN), Instant.now(), Instant.now());
+        book.setCustomFontFamily("A'; background:url(x)");
+        assertFalse(book.getCustomFontFamily().contains("'"));
+        assertFalse(book.getCustomFontFamily().contains(";"));
+        book.setCustomFontFamily("   ");
+        assertEquals(null, book.getCustomFontFamily());
+    }
+
+    @Test
     void newBookHasItsFirstColumnAsPrimaryKey(@TempDir Path tempDir) {
         try (SqliteDatabase database = new SqliteDatabase(tempDir.resolve("test.db"))) {
             database.initSchema();

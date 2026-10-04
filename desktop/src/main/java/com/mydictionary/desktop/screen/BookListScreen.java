@@ -164,7 +164,7 @@ public class BookListScreen {
         // ブック名はカバーの中ではなく下に表示し、名前の長さでカードの横幅が変わらないよう、
         // カバーと同じ幅に固定して折り返す（長い場合は複数行になり、カードの高さだけが伸びる）。
         Label label = new Label(book.getTitle());
-        label.setStyle("-fx-font-family: '" + book.getFont().getFamilyName() + "';");
+        label.setStyle("-fx-font-family: '" + book.getEffectiveFontFamily() + "';");
         label.setWrapText(true);
         label.setTextAlignment(TextAlignment.CENTER);
         label.setAlignment(Pos.CENTER);

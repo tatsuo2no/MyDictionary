@@ -89,8 +89,9 @@ public class SqliteBookRepository implements BookRepository {
 
     @Override
     public Book insert(Book book) {
-        String sql = "INSERT INTO books (uuid, shelf_id, title, theme, font, font_size_pt, icon_preset, "
-            + "icon_custom_path, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        String sql = "INSERT INTO books (uuid, shelf_id, title, theme, font, custom_font, font_size_pt, "
+            + "icon_preset, icon_custom_path, sort_order, created_at, updated_at) "
+            + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         try (PreparedStatement ps = database.getConnection().prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             String now = Instant.now().toString();
             ps.setString(1, UUID.randomUUID().toString());
@@ -98,12 +99,13 @@ public class SqliteBookRepository implements BookRepository {
             ps.setString(3, book.getTitle());
             ps.setString(4, book.getTheme().name());
             ps.setString(5, book.getFont().name());
-            ps.setInt(6, book.getFontSizePt());
-            ps.setString(7, book.getCover().isCustom() ? null : book.getCover().getPattern().name());
-            ps.setString(8, book.getCover().isCustom() ? book.getCover().getCustomImagePath() : null);
-            ps.setInt(9, nextSortOrder(book.getShelfId()));
-            ps.setString(10, now);
+            ps.setString(6, book.getCustomFontFamily());
+            ps.setInt(7, book.getFontSizePt());
+            ps.setString(8, book.getCover().isCustom() ? null : book.getCover().getPattern().name());
+            ps.setString(9, book.getCover().isCustom() ? book.getCover().getCustomImagePath() : null);
+            ps.setInt(10, nextSortOrder(book.getShelfId()));
             ps.setString(11, now);
+            ps.setString(12, now);
             ps.executeUpdate();
             try (ResultSet keys = ps.getGeneratedKeys()) {
                 if (keys.next()) {
@@ -122,18 +124,19 @@ public class SqliteBookRepository implements BookRepository {
 
     @Override
     public void update(Book book) {
-        String sql = "UPDATE books SET shelf_id=?, title=?, theme=?, font=?, font_size_pt=?, icon_preset=?, "
-            + "icon_custom_path=?, updated_at=? WHERE id=?";
+        String sql = "UPDATE books SET shelf_id=?, title=?, theme=?, font=?, custom_font=?, font_size_pt=?, "
+            + "icon_preset=?, icon_custom_path=?, updated_at=? WHERE id=?";
         try (PreparedStatement ps = database.getConnection().prepareStatement(sql)) {
             ps.setLong(1, book.getShelfId());
             ps.setString(2, book.getTitle());
             ps.setString(3, book.getTheme().name());
             ps.setString(4, book.getFont().name());
-            ps.setInt(5, book.getFontSizePt());
-            ps.setString(6, book.getCover().isCustom() ? null : book.getCover().getPattern().name());
-            ps.setString(7, book.getCover().isCustom() ? book.getCover().getCustomImagePath() : null);
-            ps.setString(8, Instant.now().toString());
-            ps.setLong(9, book.getId());
+            ps.setString(5, book.getCustomFontFamily());
+            ps.setInt(6, book.getFontSizePt());
+            ps.setString(7, book.getCover().isCustom() ? null : book.getCover().getPattern().name());
+            ps.setString(8, book.getCover().isCustom() ? book.getCover().getCustomImagePath() : null);
+            ps.setString(9, Instant.now().toString());
+            ps.setLong(10, book.getId());
             ps.executeUpdate();
         } catch (SQLException e) {
             throw new RuntimeException("ブックの更新に失敗しました", e);
@@ -181,21 +184,23 @@ public class SqliteBookRepository implements BookRepository {
 
     @Override
     public Book upsertFromSync(String uuid, long shelfId, String title, BookTheme theme, BookFont font,
-                                int fontSizePt, BookCover cover, Instant createdAt, Instant updatedAt) {
+                                String customFontFamily, int fontSizePt, BookCover cover, Instant createdAt,
+                                Instant updatedAt) {
         Optional<Book> existing = findByUuid(uuid);
         if (existing.isPresent()) {
-            String sql = "UPDATE books SET shelf_id=?, title=?, theme=?, font=?, font_size_pt=?, icon_preset=?, "
-                + "icon_custom_path=?, updated_at=? WHERE uuid=?";
+            String sql = "UPDATE books SET shelf_id=?, title=?, theme=?, font=?, custom_font=?, font_size_pt=?, "
+                + "icon_preset=?, icon_custom_path=?, updated_at=? WHERE uuid=?";
             try (PreparedStatement ps = database.getConnection().prepareStatement(sql)) {
                 ps.setLong(1, shelfId);
                 ps.setString(2, title);
                 ps.setString(3, theme.name());
                 ps.setString(4, font.name());
-                ps.setInt(5, fontSizePt);
-                ps.setString(6, cover.isCustom() ? null : cover.getPattern().name());
-                ps.setString(7, cover.isCustom() ? cover.getCustomImagePath() : null);
-                ps.setString(8, updatedAt.toString());
-                ps.setString(9, uuid);
+                ps.setString(5, customFontFamily);
+                ps.setInt(6, fontSizePt);
+                ps.setString(7, cover.isCustom() ? null : cover.getPattern().name());
+                ps.setString(8, cover.isCustom() ? cover.getCustomImagePath() : null);
+                ps.setString(9, updatedAt.toString());
+                ps.setString(10, uuid);
                 ps.executeUpdate();
             } catch (SQLException e) {
                 throw new RuntimeException("ブックの同期更新に失敗しました", e);
@@ -203,21 +208,23 @@ public class SqliteBookRepository implements BookRepository {
             return findByUuid(uuid).orElseThrow();
         }
 
-        String sql = "INSERT INTO books (uuid, shelf_id, title, theme, font, font_size_pt, icon_preset, "
-            + "icon_custom_path, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        String sql = "INSERT INTO books (uuid, shelf_id, title, theme, font, custom_font, font_size_pt, "
+            + "icon_preset, icon_custom_path, sort_order, created_at, updated_at) "
+            + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         try (PreparedStatement ps = database.getConnection().prepareStatement(sql)) {
             ps.setString(1, uuid);
             ps.setLong(2, shelfId);
             ps.setString(3, title);
             ps.setString(4, theme.name());
             ps.setString(5, font.name());
-            ps.setInt(6, fontSizePt);
-            ps.setString(7, cover.isCustom() ? null : cover.getPattern().name());
-            ps.setString(8, cover.isCustom() ? cover.getCustomImagePath() : null);
+            ps.setString(6, customFontFamily);
+            ps.setInt(7, fontSizePt);
+            ps.setString(8, cover.isCustom() ? null : cover.getPattern().name());
+            ps.setString(9, cover.isCustom() ? cover.getCustomImagePath() : null);
             // sort_order（表示順）は同期対象外。同期で入ってきたブックはそのシェルフ内の末尾に付ける。
-            ps.setInt(9, nextSortOrder(shelfId));
-            ps.setString(10, createdAt.toString());
-            ps.setString(11, updatedAt.toString());
+            ps.setInt(10, nextSortOrder(shelfId));
+            ps.setString(11, createdAt.toString());
+            ps.setString(12, updatedAt.toString());
             ps.executeUpdate();
         } catch (SQLException e) {
             throw new RuntimeException("ブックの同期作成に失敗しました", e);
@@ -245,6 +252,7 @@ public class SqliteBookRepository implements BookRepository {
         );
         book.setSortOrder(rs.getInt("sort_order"));
         book.setFontSizePt(resolveFontSizePt(rs.getInt("font_size_pt"), rs.wasNull()));
+        book.setCustomFontFamily(rs.getString("custom_font"));
         return book;
     }
 
