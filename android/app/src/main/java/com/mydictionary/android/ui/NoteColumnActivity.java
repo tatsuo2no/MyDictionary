@@ -93,8 +93,12 @@ public class NoteColumnActivity extends AppCompatActivity implements NoteColumnA
 
     @Override
     public void onDelete(NoteColumn column) {
+        int filled = columnRepository.countNonEmptyValues(column.getId());
+        String message = filled > 0
+            ? getString(R.string.confirm_delete_note_column_with_values_format, column.getName(), filled)
+            : getString(R.string.confirm_delete_note_column_format, column.getName());
         new AlertDialog.Builder(this)
-            .setMessage(getString(R.string.confirm_delete_note_column_format, column.getName()))
+            .setMessage(message)
             .setPositiveButton(R.string.yes, (d, which) -> {
                 columnRepository.delete(column.getId());
                 refresh();

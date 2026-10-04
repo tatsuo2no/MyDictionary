@@ -19,6 +19,9 @@ public interface NoteColumnRepository {
 
     void delete(long id);
 
+    /** この項目に、空でない値が入力されているノートの数（削除の確認で「失われる件数」を示すために使う）。 */
+    int countNonEmptyValues(long columnId);
+
     /**
      * 指定したカラムをブックの主キーにする。同じブックの他のカラムの主キーの印を外し、
      * 新しい主キーのカラムは必須にする（主キーは常に必須のため）。実際に値が変わったカラムだけ

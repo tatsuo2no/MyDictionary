@@ -255,6 +255,22 @@ public final class DatabaseMerger {
                     fieldValuesByColumnUuid.put(columnUuid, value);
                 }
             });
+            // 更新日時が同じ（＝どちらかが編集したわけではない）のに値の持ち方だけ食い違う場合は、
+            // 項目の削除や重複解消など「編集以外」の操作で片方の値が失われているだけなので、
+            // 負けた側の入力済みの値を捨てずに残す（引き分けの勝者は呼び出し順で決まる偶然に過ぎない）。
+            if (a != null && b != null && a.getUpdatedAt().equals(b.getUpdatedAt())) {
+                Note loser = winnerIsA ? b : a;
+                Map<Long, String> loserColumnUuidById = winnerIsA ? columnUuidByIdB : columnUuidByIdA;
+                loser.getFieldValues().forEach((columnId, value) -> {
+                    String columnUuid = loserColumnUuidById.get(columnId);
+                    if (columnUuid != null && value != null && !value.isBlank()) {
+                        String existing = fieldValuesByColumnUuid.get(columnUuid);
+                        if (existing == null || existing.isBlank()) {
+                            fieldValuesByColumnUuid.put(columnUuid, value);
+                        }
+                    }
+                });
+            }
             Map<Long, String> fieldValuesForA = mapToIdKeyed(fieldValuesByColumnUuid, columnIdByUuidA);
             Map<Long, String> fieldValuesForB = mapToIdKeyed(fieldValuesByColumnUuid, columnIdByUuidB);
 

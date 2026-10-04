@@ -200,6 +200,116 @@ class DatabaseMergerIntegrationTest {
         }
     }
 
+    /** 両端末が別々に作った「同名・別uuid」の項目が同期で重複しても、必ず同じ1組に収束し、入力値は失われない。 */
+    @Test
+    void duplicateColumnsWithDifferentUuidsConvergeToTheSameColumnsAndKeepEveryValue(@TempDir Path tempDir) {
+        try (SqliteDatabase dbA = new SqliteDatabase(tempDir.resolve("a.db"));
+             SqliteDatabase dbB = new SqliteDatabase(tempDir.resolve("b.db"))) {
+            dbA.initSchema();
+            dbB.initSchema();
+            SqliteShelfRepository shelvesA = new SqliteShelfRepository(dbA);
+            SqliteBookRepository booksA = new SqliteBookRepository(dbA);
+            SqliteTagRepository tagsA = new SqliteTagRepository(dbA);
+            SqliteNoteColumnRepository columnsA = new SqliteNoteColumnRepository(dbA);
+            SqliteNoteRepository notesA = new SqliteNoteRepository(dbA);
+            SqliteShelfRepository shelvesB = new SqliteShelfRepository(dbB);
+            SqliteBookRepository booksB = new SqliteBookRepository(dbB);
+            SqliteTagRepository tagsB = new SqliteTagRepository(dbB);
+            SqliteNoteColumnRepository columnsB = new SqliteNoteColumnRepository(dbB);
+            SqliteNoteRepository notesB = new SqliteNoteRepository(dbB);
+
+            Shelf shelf = shelvesA.insert(new Shelf(0, null, "シェルフ",
+                BookCover.ofPattern(BookCover.Pattern.PLAIN), Instant.now(), Instant.now()));
+            Book bookA = booksA.insert(new Book(0, null, shelf.getId(), "ブック", BookTheme.GREEN,
+                BookFont.MEIRYO_UI, BookCover.ofPattern(BookCover.Pattern.PLAIN), Instant.now(), Instant.now()));
+            List<NoteColumn> original = columnsA.findByBookId(bookA.getId());
+            Note note = new Note(0, null, bookA.getId(), "本文", Instant.now(), Instant.now());
+            note.setFieldValues(Map.of(original.get(0).getId(), "犬", original.get(1).getId(), "いぬ"));
+            Note savedNote = notesA.insert(note);
+            DatabaseMerger.merge(shelvesA, booksA, tagsA, columnsA, notesA,
+                shelvesB, booksB, tagsB, columnsB, notesB);
+
+            // B側が、元の項目を失い（値も一緒に消える）、別のuuidで同名の項目3つだけを持つ状態にする。
+            // 同期後はA側はidの小さい元の組、B側はidの小さい別の組を「先頭」と見なしてしまう並びになる。
+            Book bookB = booksB.findByUuid(bookA.getUuid()).orElseThrow();
+            try (var st = dbB.getConnection().createStatement()) {
+                st.execute("DELETE FROM note_columns WHERE book_id = " + bookB.getId());
+            } catch (java.sql.SQLException e) {
+                throw new IllegalStateException(e);
+            }
+            columnsB.insert(new NoteColumn(0, null, bookB.getId(), "項目名", true, 0, null));
+            columnsB.insert(new NoteColumn(0, null, bookB.getId(), "読み", true, 1, null));
+            columnsB.insert(new NoteColumn(0, null, bookB.getId(), "英訳", false, 2, null));
+
+            for (int round = 0; round < 2; round++) {
+                DatabaseMerger.merge(shelvesA, booksA, tagsA, columnsA, notesA,
+                    shelvesB, booksB, tagsB, columnsB, notesB);
+                dbA.initSchema();
+                dbB.initSchema();
+            }
+
+            List<NoteColumn> finalA = columnsA.findByBookId(bookA.getId());
+            List<NoteColumn> finalB = columnsB.findByBookId(bookB.getId());
+            assertEquals(3, finalA.size());
+            assertEquals(finalA.stream().map(NoteColumn::getUuid).sorted().toList(),
+                finalB.stream().map(NoteColumn::getUuid).sorted().toList());
+            for (NoteColumn column : finalA) {
+                assertEquals(column.getName().equals("項目名") ? 0 : column.getName().equals("読み") ? 1 : 2,
+                    column.getSortOrder());
+            }
+            Note inA = notesA.findByBookId(bookA.getId()).get(0);
+            Note inB = notesB.findByBookId(bookB.getId()).get(0);
+            assertEquals(savedNote.getUuid(), inB.getUuid());
+            for (Note n : List.of(inA, inB)) {
+                List<String> values = n.getFieldValues().values().stream().filter(v -> !v.isBlank()).sorted().toList();
+                assertEquals(List.of("いぬ", "犬"), values);
+            }
+        }
+    }
+
+    /** 更新日時が同じノートで片方だけ項目の値を失っていても（項目の削除など）、同期で値を消さない。 */
+    @Test
+    void sameTimestampNoteNeverLosesFilledValuesBecauseOtherSideHasNone(@TempDir Path tempDir) throws Exception {
+        try (SqliteDatabase dbA = new SqliteDatabase(tempDir.resolve("a.db"));
+             SqliteDatabase dbB = new SqliteDatabase(tempDir.resolve("b.db"))) {
+            dbA.initSchema();
+            dbB.initSchema();
+            SqliteShelfRepository shelvesA = new SqliteShelfRepository(dbA);
+            SqliteBookRepository booksA = new SqliteBookRepository(dbA);
+            SqliteTagRepository tagsA = new SqliteTagRepository(dbA);
+            SqliteNoteColumnRepository columnsA = new SqliteNoteColumnRepository(dbA);
+            SqliteNoteRepository notesA = new SqliteNoteRepository(dbA);
+            SqliteShelfRepository shelvesB = new SqliteShelfRepository(dbB);
+            SqliteBookRepository booksB = new SqliteBookRepository(dbB);
+            SqliteTagRepository tagsB = new SqliteTagRepository(dbB);
+            SqliteNoteColumnRepository columnsB = new SqliteNoteColumnRepository(dbB);
+            SqliteNoteRepository notesB = new SqliteNoteRepository(dbB);
+
+            Shelf shelf = shelvesA.insert(new Shelf(0, null, "シェルフ",
+                BookCover.ofPattern(BookCover.Pattern.PLAIN), Instant.now(), Instant.now()));
+            Book bookA = booksA.insert(new Book(0, null, shelf.getId(), "ブック", BookTheme.GREEN,
+                BookFont.MEIRYO_UI, BookCover.ofPattern(BookCover.Pattern.PLAIN), Instant.now(), Instant.now()));
+            Note note = new Note(0, null, bookA.getId(), "本文", Instant.now(), Instant.now());
+            note.setFieldValues(Map.of(columnsA.findByBookId(bookA.getId()).get(0).getId(), "犬"));
+            notesA.insert(note);
+            DatabaseMerger.merge(shelvesA, booksA, tagsA, columnsA, notesA,
+                shelvesB, booksB, tagsB, columnsB, notesB);
+
+            // B側だけ値が消えた状態（更新日時はそのまま）。引き分けでBが勝つ呼び出し順でも、Aの値は消さない。
+            try (var st = dbB.getConnection().createStatement()) {
+                st.execute("DELETE FROM note_field_values");
+            }
+            DatabaseMerger.merge(shelvesA, booksA, tagsA, columnsA, notesA,
+                shelvesB, booksB, tagsB, columnsB, notesB);
+
+            assertEquals(1, notesA.findByBookId(bookA.getId()).get(0).getFieldValues().values().stream()
+                .filter(v -> "犬".equals(v)).count());
+            Book bookB = booksB.findByUuid(bookA.getUuid()).orElseThrow();
+            assertEquals(1, notesB.findByBookId(bookB.getId()).get(0).getFieldValues().values().stream()
+                .filter(v -> "犬".equals(v)).count());
+        }
+    }
+
     @Test
     void customFontSettingSyncsAcrossSides(@TempDir Path tempDir) {
         try (SqliteDatabase dbA = new SqliteDatabase(tempDir.resolve("a.db"));

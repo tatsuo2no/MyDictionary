@@ -160,9 +160,14 @@ public class NoteColumnScreen {
     }
 
     private void onDeleteColumn(NoteColumn column) {
-        Alert alert = new Alert(Alert.AlertType.CONFIRMATION,
-            "「" + column.getName() + "」を削除しますか？（この項目に入力されていた内容も削除されます）",
-            ButtonType.YES, ButtonType.NO);
+        int filled = columnRepository.countNonEmptyValues(column.getId());
+        String message = filled > 0
+            ? "「" + column.getName() + "」には " + filled + " 件のノートの入力内容があります。\n"
+                + "削除するとそれらの内容もすべて失われ、元に戻せません。本当に削除しますか？\n\n"
+                + "（同じ名前の項目が重複して見える場合は、同期のたびに自動で1つにまとまるため、"
+                + "手動で削除する必要はありません）"
+            : "「" + column.getName() + "」を削除しますか？（この項目に入力された内容はありません）";
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION, message, ButtonType.YES, ButtonType.NO);
         alert.setHeaderText(null);
         alert.showAndWait().ifPresent(result -> {
             if (result == ButtonType.YES) {

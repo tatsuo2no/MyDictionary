@@ -1,8 +1,10 @@
 package com.mydictionary.desktop.screen;
 
+import com.mydictionary.core.markdown.HeadingStyles;
 import com.mydictionary.core.markdown.MarkdownEditing;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
+import javafx.geometry.Point2D;
 import javafx.scene.Node;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
@@ -29,6 +31,7 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontPosture;
 import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
+import javafx.stage.Popup;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -51,14 +54,30 @@ final class NoteFormatToolbar {
     private final TextArea area;
     private final Supplier<List<String>> fontFamilies;
     private final Runnable onInsertImage;
-    private final FlowPane root = new FlowPane(4, 4);
+    /** 見出しウィンドウに出す見出しレベルは1〜5（レベル6は本文と同じ大きさなので出さない）。 */
+    private static final int MAX_HEADING_LEVEL = 5;
+
+    private final String bookFontFamily;
+    private final int baseFontSizePt;
+    // 1行目: 文字の装飾・配置、2行目: 見出し・リスト・挿入・モード切替。幅が狭いときは各行がさらに折り返す。
+    private final VBox root = new VBox(4);
+    private final FlowPane firstRow = new FlowPane(4, 4);
+    private final FlowPane secondRow = new FlowPane(4, 4);
+    private FlowPane currentRow = firstRow;
     private final List<Node> formatNodes = new ArrayList<>();
 
+    /**
+     * bookFontFamily・baseFontSizePtは、見出しウィンドウで「ノートで実際に表示される大きさ」を
+     * サンプル表示するための、このブックの本文フォントと標準サイズ(pt)。
+     */
     NoteFormatToolbar(TextArea area, Supplier<List<String>> fontFamilies, Runnable onInsertImage,
-                      Runnable onShowPreview) {
+                      Runnable onShowPreview, String bookFontFamily, int baseFontSizePt) {
         this.area = area;
         this.fontFamilies = fontFamilies;
         this.onInsertImage = onInsertImage;
+        this.bookFontFamily = bookFontFamily;
+        this.baseFontSizePt = baseFontSizePt;
+        root.getChildren().addAll(firstRow, secondRow);
         build(onShowPreview);
     }
 
@@ -105,6 +124,12 @@ final class NoteFormatToolbar {
             () -> align("center")));
         addFormat(iconButton(alignIcon("M1 2h14v2H1z M6 6h9v2H6z M1 10h14v2H1z M6 14h9v2H6z"), "右揃え",
             () -> align("right")));
+
+        // ---- 2行目の先頭から: 見出し・リスト・挿入
+        currentRow = secondRow;
+        Button headingButton = textButton(new Label("見出し ▾"), "見出し（大きさを確認して選べます）", null);
+        headingButton.setOnAction(e -> showHeadingPopup(headingButton));
+        addFormat(headingButton);
         addFormat(separator());
 
         // リスト
@@ -140,12 +165,60 @@ final class NoteFormatToolbar {
         previewButton.setFocusTraversable(false);
         previewButton.setOnAction(e -> onShowPreview.run());
 
-        root.getChildren().addAll(markdownModeButton, previewButton);
+        secondRow.getChildren().addAll(markdownModeButton, previewButton);
     }
 
     private void addFormat(Node node) {
         formatNodes.add(node);
-        root.getChildren().add(node);
+        currentRow.getChildren().add(node);
+    }
+
+    /**
+     * 見出しレベル5→1の順に、このブックの標準フォントサイズを基準に実際に表示される大きさで
+     * 1行ずつサンプルを並べたウィンドウ。選んだレベルを本文欄の選択行（無ければカーソル行）に適用する。
+     */
+    private void showHeadingPopup(Node anchor) {
+        Popup popup = new Popup();
+        popup.setAutoHide(true);
+
+        VBox box = new VBox(2);
+        box.setPadding(new Insets(8));
+        box.setStyle("-fx-background-color: white; -fx-border-color: #999999; -fx-border-width: 1;");
+        Label title = new Label("見出し（本文の標準 " + baseFontSizePt + "pt を基準にした表示サイズ）");
+        title.setStyle("-fx-text-fill: #555555;");
+        box.getChildren().add(title);
+
+        String family = "'" + bookFontFamily + "'";
+        for (int level = MAX_HEADING_LEVEL; level >= HeadingStyles.MIN_LEVEL; level--) {
+            int chosen = level;
+            String size = HeadingStyles.formatPt(HeadingStyles.sizePt(level, baseFontSizePt));
+            Button row = new Button("見出し" + level + "　サンプルの文字　（" + size + "pt）");
+            row.setFocusTraversable(false);
+            row.setMaxWidth(Double.MAX_VALUE);
+            String normal = "-fx-background-color: transparent; -fx-alignment: center-left; -fx-font-weight: bold;"
+                + " -fx-font-family: " + family + "; -fx-font-size: " + size + "pt;";
+            row.setStyle(normal);
+            row.setOnMouseEntered(e -> row.setStyle(normal + " -fx-background-color: #e8f0fb;"));
+            row.setOnMouseExited(e -> row.setStyle(normal));
+            row.setOnAction(e -> {
+                popup.hide();
+                edit(s -> MarkdownEditing.setHeading(s, selStart(), selEnd(), chosen));
+            });
+            box.getChildren().add(row);
+        }
+
+        Button clear = new Button("見出しを解除（通常の文字に戻す）");
+        clear.setFocusTraversable(false);
+        clear.setOnAction(e -> {
+            popup.hide();
+            edit(s -> MarkdownEditing.setHeading(s, selStart(), selEnd(), 0));
+        });
+        box.getChildren().add(clear);
+        VBox.setMargin(clear, new Insets(6, 0, 0, 0));
+
+        popup.getContent().add(box);
+        Point2D at = anchor.localToScreen(0, anchor.getLayoutBounds().getHeight());
+        popup.show(anchor, at.getX(), at.getY());
     }
 
     // ---------------------------------------------------------------- 操作

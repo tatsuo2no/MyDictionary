@@ -364,12 +364,12 @@ public class SqliteDatabase implements AutoCloseable {
         Map<String, List<long[]>> groups = new LinkedHashMap<>();
         try (Statement st = getConnection().createStatement();
              ResultSet rs = st.executeQuery(
-                 "SELECT id, book_id, name, sort_order, required FROM note_columns "
-                     + "ORDER BY book_id, name, sort_order, id")) {
+                 "SELECT id, book_id, name, required, is_primary FROM note_columns "
+                     + "ORDER BY book_id, name, uuid, id")) {
             while (rs.next()) {
                 String key = rs.getLong("book_id") + "|" + rs.getString("name");
                 groups.computeIfAbsent(key, k -> new ArrayList<>())
-                    .add(new long[]{rs.getLong("id"), rs.getInt("required")});
+                    .add(new long[]{rs.getLong("id"), rs.getInt("required"), rs.getInt("is_primary")});
             }
         } catch (SQLException e) {
             throw new RuntimeException("重複カラムの検出に失敗しました", e);
@@ -379,16 +379,29 @@ public class SqliteDatabase implements AutoCloseable {
             if (group.size() <= 1) {
                 continue;
             }
+            // 残す1つは「uuidが最小のもの」。ローカルのid順などで決めると端末ごとに別の項目が残り、
+            // 同期（両方の和集合）のたびに重複が復活して、解消と復活を永遠に繰り返してしまう。
             long canonicalId = group.get(0)[0];
             boolean anyRequired = group.get(0)[1] != 0;
+            boolean anyPrimary = group.get(0)[2] != 0;
             for (int i = 1; i < group.size(); i++) {
                 long duplicateId = group.get(i)[0];
                 anyRequired = anyRequired || group.get(i)[1] != 0;
+                anyPrimary = anyPrimary || group.get(i)[2] != 0;
                 mergeFieldValuesInto(canonicalId, duplicateId);
                 deleteNoteColumn(duplicateId);
             }
-            if (anyRequired) {
+            if (anyRequired || anyPrimary) {
                 setColumnRequired(canonicalId, true);
+            }
+            if (anyPrimary) {
+                try (PreparedStatement ps = getConnection().prepareStatement(
+                        "UPDATE note_columns SET is_primary = 1 WHERE id = ?")) {
+                    ps.setLong(1, canonicalId);
+                    ps.executeUpdate();
+                } catch (SQLException e) {
+                    throw new RuntimeException("主キーの引き継ぎに失敗しました", e);
+                }
             }
         }
     }

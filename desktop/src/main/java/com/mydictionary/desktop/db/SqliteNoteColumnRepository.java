@@ -121,6 +121,20 @@ public class SqliteNoteColumnRepository implements NoteColumnRepository {
     }
 
     @Override
+    public int countNonEmptyValues(long columnId) {
+        String sql = "SELECT COUNT(*) FROM note_field_values WHERE column_id = ? "
+            + "AND value IS NOT NULL AND TRIM(value) <> ''";
+        try (PreparedStatement ps = database.getConnection().prepareStatement(sql)) {
+            ps.setLong(1, columnId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getInt(1) : 0;
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("入力件数の取得に失敗しました", e);
+        }
+    }
+
+    @Override
     public void setPrimary(long bookId, long columnId) {
         String now = Instant.now().toString();
         String sql = "UPDATE note_columns SET is_primary=?, required=?, updated_at=? WHERE id=?";

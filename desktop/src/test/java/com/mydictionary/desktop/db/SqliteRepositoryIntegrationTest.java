@@ -432,6 +432,24 @@ class SqliteRepositoryIntegrationTest {
     }
 
     @Test
+    void countsOnlyNonEmptyValuesOfAColumnForTheDeleteWarning(@TempDir Path tempDir) {
+        try (SqliteDatabase database = new SqliteDatabase(tempDir.resolve("test.db"))) {
+            database.initSchema();
+            Book book = insertBook(database);
+            SqliteNoteColumnRepository repository = new SqliteNoteColumnRepository(database);
+            List<NoteColumn> columns = repository.findByBookId(book.getId());
+            SqliteNoteRepository notes = new SqliteNoteRepository(database);
+            for (String value : List.of("犬", "猫", "  ", "")) {
+                Note note = new Note(0, null, book.getId(), "", Instant.now(), Instant.now());
+                note.setFieldValues(Map.of(columns.get(0).getId(), value));
+                notes.insert(note);
+            }
+            assertEquals(2, repository.countNonEmptyValues(columns.get(0).getId()));
+            assertEquals(0, repository.countNonEmptyValues(columns.get(1).getId()));
+        }
+    }
+
+    @Test
     void newBookHasItsFirstColumnAsPrimaryKey(@TempDir Path tempDir) {
         try (SqliteDatabase database = new SqliteDatabase(tempDir.resolve("test.db"))) {
             database.initSchema();

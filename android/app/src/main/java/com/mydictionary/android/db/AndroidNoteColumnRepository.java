@@ -89,6 +89,15 @@ public class AndroidNoteColumnRepository implements NoteColumnRepository {
     }
 
     @Override
+    public int countNonEmptyValues(long columnId) {
+        SQLiteDatabase db = dbHelper.getReadableDatabase();
+        try (Cursor cursor = db.rawQuery("SELECT COUNT(*) FROM note_field_values WHERE column_id = ? "
+                + "AND value IS NOT NULL AND TRIM(value) <> ''", new String[]{String.valueOf(columnId)})) {
+            return cursor.moveToFirst() ? cursor.getInt(0) : 0;
+        }
+    }
+
+    @Override
     public void setPrimary(long bookId, long columnId) {
         SQLiteDatabase db = dbHelper.getWritableDatabase();
         String now = Instant.now().toString();

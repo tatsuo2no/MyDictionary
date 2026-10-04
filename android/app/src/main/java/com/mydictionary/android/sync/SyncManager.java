@@ -102,6 +102,11 @@ public final class SyncManager {
 
                 DatabaseMerger.merge(localShelves, localBooks, localTags, localColumns, localNotes,
                     remoteShelves, remoteBooks, remoteTags, remoteColumns, remoteNotes);
+
+                // 両端末の項目の和集合に同名の重複が生じていても、共有する前に1つにまとめる。残す項目は
+                // uuidで決まるので、デスクトップ版の起動時の整理と必ず同じ結果になる。
+                localDbHelper.deduplicateNoteColumns();
+                remoteHelper.deduplicateNoteColumns();
             } finally {
                 remoteHelper.close();
             }

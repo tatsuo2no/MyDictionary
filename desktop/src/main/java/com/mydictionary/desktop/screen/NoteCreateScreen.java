@@ -200,7 +200,7 @@ public class NoteCreateScreen {
                 families.addAll(com.mydictionary.desktop.font.FontLibrary.families());
                 return families;
             },
-            this::onInsertImage, this::showPreview);
+            this::onInsertImage, this::showPreview, book.getEffectiveFontFamily(), book.getFontSizePt());
 
         VBox rightPanel = new VBox(8, new Label("本文（ツールバーで書式を設定できます。Markdown風記法も直接入力できます）"),
             formatToolbar.getNode(), bodyArea);
@@ -450,8 +450,7 @@ public class NoteCreateScreen {
             + "rt{font-size:0.6em;}"
             + "img{max-width:100%;display:block;margin:8px 0;}"
             + "h1,h2,h3,h4,h5,h6{font-weight:bold;margin:0.8em 0 0.3em;}"
-            + "h1{font-size:1.8em;} h2{font-size:1.5em;} h3{font-size:1.3em;}"
-            + "h4{font-size:1.15em;} h5{font-size:1.05em;} h6{font-size:1em;}"
+            + com.mydictionary.core.markdown.HeadingStyles.css()
             + "</style>" + com.mydictionary.desktop.KatexAssets.headHtml()
             + "</head><body>" + bodyHtml + "</body></html>";
 

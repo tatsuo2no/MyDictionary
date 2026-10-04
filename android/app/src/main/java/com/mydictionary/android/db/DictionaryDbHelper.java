@@ -330,15 +330,30 @@ public class DictionaryDbHelper extends SQLiteOpenHelper {
      * 他のカラムに入力されていた値を残す方が空の場合にだけ複製してから、他のカラムを削除する
      * （note_field_valuesはON DELETE CASCADEなので、カラム削除で自動的に消える）。
      */
+    /**
+     * 同じブックで同名のノート項目が複数あれば1つにまとめる（入力済みの値は残す項目へ移す）。
+     * 同期でデスクトップ版の項目と和集合になった直後に呼び、重複した状態のまま共有しないようにする。
+     */
+    public void deduplicateNoteColumns() {
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+        try {
+            deduplicateNoteColumns(db);
+            db.setTransactionSuccessful();
+        } finally {
+            db.endTransaction();
+        }
+    }
+
     private void deduplicateNoteColumns(SQLiteDatabase db) {
         Map<String, List<long[]>> groups = new LinkedHashMap<>();
         try (Cursor cursor = db.rawQuery(
-                "SELECT id, book_id, name, sort_order, required FROM note_columns "
-                    + "ORDER BY book_id, name, sort_order, id", null)) {
+                "SELECT id, book_id, name, required, is_primary FROM note_columns "
+                    + "ORDER BY book_id, name, uuid, id", null)) {
             while (cursor.moveToNext()) {
                 String key = cursor.getLong(1) + "|" + cursor.getString(2);
                 groups.computeIfAbsent(key, k -> new ArrayList<>())
-                    .add(new long[]{cursor.getLong(0), cursor.getInt(4)});
+                    .add(new long[]{cursor.getLong(0), cursor.getInt(3), cursor.getInt(4)});
             }
         }
 
@@ -346,17 +361,24 @@ public class DictionaryDbHelper extends SQLiteOpenHelper {
             if (group.size() <= 1) {
                 continue;
             }
+            // 残す1つは「uuidが最小のもの」（デスクトップ版と同じ規則）。ローカルのid順などで決めると
+            // 端末ごとに別の項目が残り、同期のたびに重複が復活して解消と復活を繰り返してしまう。
             long canonicalId = group.get(0)[0];
             boolean anyRequired = group.get(0)[1] != 0;
+            boolean anyPrimary = group.get(0)[2] != 0;
             for (int i = 1; i < group.size(); i++) {
                 long duplicateId = group.get(i)[0];
                 anyRequired = anyRequired || group.get(i)[1] != 0;
+                anyPrimary = anyPrimary || group.get(i)[2] != 0;
                 mergeFieldValuesInto(db, canonicalId, duplicateId);
                 db.delete("note_columns", "id = ?", new String[]{String.valueOf(duplicateId)});
             }
-            if (anyRequired) {
+            if (anyRequired || anyPrimary) {
                 ContentValues values = new ContentValues();
                 values.put("required", 1);
+                if (anyPrimary) {
+                    values.put("is_primary", 1);
+                }
                 db.update("note_columns", values, "id = ?", new String[]{String.valueOf(canonicalId)});
             }
         }

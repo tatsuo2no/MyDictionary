@@ -33,6 +33,7 @@ public final class MarkdownEditing {
         Pattern.compile("^\\{:\\s*align=\"(left|center|right)\"\\s*\\}$", Pattern.CASE_INSENSITIVE);
     private static final Pattern HEADING_LINE = Pattern.compile("^#{1,6}\\s+.+$");
     private static final Pattern ORDERED_PREFIX = Pattern.compile("^\\d+\\.\\s+");
+    private static final Pattern HEADING_PREFIX = Pattern.compile("^(#{1,6})\\s+");
     private static final String SPAN_CLOSE = "</span>";
 
     private MarkdownEditing() {
@@ -362,6 +363,67 @@ public final class MarkdownEditing {
         }
         Matcher ordered = ORDERED_PREFIX.matcher(body);
         return ordered.find() ? ordered.end() : 0;
+    }
+
+    /**
+     * 選択範囲（無ければカーソル行）の各行を、見出し(level=1〜6、行頭の「#」の数)にする。
+     * 全ての行が既に同じレベルの見出しなら通常の行へ戻す（トグル）。level=0なら見出しを解除する。
+     * 見出しは行単位の記法なので、行頭の箇条書き・引用・別レベルの見出しの印は置き換える。
+     */
+    public static Result setHeading(String text, int start, int end, int level) {
+        int s = clamp(Math.min(start, end), text);
+        int e = clamp(Math.max(start, end), text);
+        List<int[]> lines = lineRanges(text);
+        Kind[] kinds = classify(text, lines);
+        int first = lineIndexOf(lines, s);
+        int last = lineIndexOf(lines, e > s ? e - 1 : e);
+
+        List<Integer> targets = new ArrayList<>();
+        boolean allAlreadyThisLevel = level > 0;
+        for (int i = first; i <= last; i++) {
+            Kind kind = kinds[i];
+            if (kind == Kind.BLANK || kind == Kind.DIRECTIVE || kind == Kind.FENCE || kind == Kind.CODE
+                || kind == Kind.TABLE || kind == Kind.HR) {
+                continue;
+            }
+            targets.add(i);
+            String body = lineContent(text, lines.get(i)).stripLeading();
+            if (headingLevel(body) != level) {
+                allAlreadyThisLevel = false;
+            }
+        }
+        if (targets.isEmpty()) {
+            return new Result(text, s, e);
+        }
+
+        String newPrefix = (level <= 0 || allAlreadyThisLevel) ? "" : "#".repeat(level) + " ";
+        List<Edit> edits = new ArrayList<>();
+        for (int i : targets) {
+            int lineStart = lines.get(i)[0];
+            String content = lineContent(text, lines.get(i));
+            int indent = content.length() - content.stripLeading().length();
+            String body = content.substring(indent);
+            edits.add(new Edit(lineStart + indent, lineStart + indent + blockPrefixLength(body), newPrefix));
+        }
+        return applyEdits(text, edits, s, e);
+    }
+
+    /** 行頭の「#」の数（見出しレベル）。見出しでなければ0。 */
+    private static int headingLevel(String body) {
+        Matcher m = HEADING_PREFIX.matcher(body);
+        return m.find() ? m.group(1).length() : 0;
+    }
+
+    /** 見出し・引用・箇条書きなど、行頭にあるブロックの印の長さ。 */
+    private static int blockPrefixLength(String body) {
+        Matcher heading = HEADING_PREFIX.matcher(body);
+        if (heading.find()) {
+            return heading.end();
+        }
+        if (body.startsWith("> ")) {
+            return 2;
+        }
+        return existingListPrefixLength(body);
     }
 
     /** 選択範囲（無ければカーソル行）の各行頭に「&gt; 」を付ける（全行が既に付いていれば外す）。 */

@@ -261,6 +261,46 @@ class MarkdownEditingTest {
         assertEquals("引用文", off.text());
     }
 
+    // ---- 見出し
+
+    @Test
+    void turnsCaretLineIntoHeadingOfTheGivenLevel() {
+        MarkdownEditing.Result r = MarkdownEditing.setHeading("前\n見出しにする\n後", 4, 4, 3);
+        assertEquals("前\n### 見出しにする\n後", r.text());
+        assertTrue(new MarkdownRenderer().render(r.text()).contains("<h3>見出しにする</h3>"));
+    }
+
+    @Test
+    void changingHeadingLevelReplacesTheExistingMarks() {
+        assertEquals("## 題", MarkdownEditing.setHeading("##### 題", 0, 0, 2).text());
+        assertEquals("# 題", MarkdownEditing.setHeading("- 題", 0, 0, 1).text());
+        assertEquals("#### 題", MarkdownEditing.setHeading("> 題", 0, 0, 4).text());
+        assertEquals("# 題", MarkdownEditing.setHeading("1. 題", 0, 0, 1).text());
+    }
+
+    @Test
+    void sameLevelAgainTurnsHeadingBackIntoPlainText() {
+        assertEquals("題", MarkdownEditing.setHeading("## 題", 0, 0, 2).text());
+    }
+
+    @Test
+    void levelZeroRemovesHeading() {
+        assertEquals("題", MarkdownEditing.setHeading("### 題", 0, 0, 0).text());
+        assertEquals("普通", MarkdownEditing.setHeading("普通", 0, 0, 0).text());
+    }
+
+    @Test
+    void headingAppliesToEverySelectedNonBlankLine() {
+        MarkdownEditing.Result r = MarkdownEditing.setHeading("a\n\nb", 0, 4, 2);
+        assertEquals("## a\n\n## b", r.text());
+    }
+
+    @Test
+    void headingLeavesCodeBlocksTablesAndRulesAlone() {
+        String text = "```\n#x\n```\n|a|b|\n---";
+        assertEquals(text, MarkdownEditing.setHeading(text, 0, text.length(), 1).text());
+    }
+
     // ---- 挿入
 
     @Test

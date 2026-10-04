@@ -97,7 +97,8 @@
     <string name="note_column_hint">「主キー」に設定した項目は、ノート一覧で太字の大文字の見出しとして表示され、名前順の並び替えの既定にも使われます。主キーは常に必須で、削除できません。それ以外の項目は必須・任意を切り替えたり、削除したりできます。</string>
     <string name="add_note_column_title">項目を追加</string>
     <string name="rename_note_column_title">名前を変更</string>
-    <string name="confirm_delete_note_column_format">「%1$s」を削除しますか？（この項目に入力されていた内容も削除されます）</string>
+    <string name="confirm_delete_note_column_format">「%1$s」を削除しますか？（この項目に入力された内容はありません）</string>
+    <string name="confirm_delete_note_column_with_values_format">「%1$s」には %2$d 件のノートの入力内容があります。削除するとそれらの内容もすべて失われ、元に戻せません。本当に削除しますか？\n\n（同じ名前の項目が重複して見える場合は、同期のたびに自動で1つにまとまるため、手動で削除する必要はありません）</string>
 
     <!-- ノート画面 -->
     <string name="action_edit_note">ノートを編集</string>
@@ -153,6 +154,11 @@
     <string name="fmt_table_columns">列数</string>
     <string name="fmt_table_hint">行数は1〜%1$d、列数は1〜%2$d の整数で入力してください</string>
     <string name="fmt_insert">挿入</string>
+    <string name="fmt_heading">見出し ▾</string>
+    <string name="fmt_heading_tooltip">見出し（大きさを確認して選べます）</string>
+    <string name="fmt_heading_title">見出し（本文の標準 %1$dpt を基準にした表示サイズ）</string>
+    <string name="fmt_heading_row_format">見出し%1$d（%2$spt）</string>
+    <string name="fmt_heading_clear">見出しを解除</string>
     <string name="action_save_note">ノートを保存</string>
     <string name="error_required_columns_format">%1$sは必須です</string>
     <string name="error_image_save_failed">画像の保存に失敗しました: %1$s</string>

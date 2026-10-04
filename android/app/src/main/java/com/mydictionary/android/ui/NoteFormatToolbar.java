@@ -23,8 +23,10 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.widget.TooltipCompat;
 
 import com.google.android.material.button.MaterialButton;
+import com.mydictionary.android.CustomFontFiles;
 import com.mydictionary.android.R;
 import com.mydictionary.core.markdown.CssNamedColors;
+import com.mydictionary.core.markdown.HeadingStyles;
 import com.mydictionary.core.markdown.MarkdownEditing;
 
 import java.util.ArrayList;
@@ -45,44 +47,76 @@ final class NoteFormatToolbar {
     private static final int MAX_TABLE_ROWS = 100;
     private static final int MAX_TABLE_COLUMNS = 20;
     private static final int BUTTON_SIZE_DP = 44;
+    /** 見出しウィンドウに出す見出しレベルは1〜5（レベル6は本文と同じ大きさなので出さない）。 */
+    private static final int MAX_HEADING_LEVEL = 5;
 
     private final Activity activity;
     private final EditText body;
     private final Supplier<List<String>> fontFamilies;
     private final Runnable onInsertImage;
-    private final LinearLayout buttonRow;
+    private final String bookFontFamily;
+    private final int baseFontSizePt;
+    /** 1行目（文字の装飾・配置）と2行目（見出し・リスト・挿入）。どちらも横スクロール。 */
+    private final LinearLayout firstRow;
+    private final LinearLayout secondRow;
+    private LinearLayout currentRow;
 
+    /**
+     * bookFontFamily・baseFontSizePtは、見出しウィンドウで「ノートで実際に表示される大きさ」を
+     * サンプル表示するための、このブックの本文フォントと標準サイズ(pt)。
+     */
     NoteFormatToolbar(Activity activity, LinearLayout container, EditText body,
-                      Supplier<List<String>> fontFamilies, Runnable onInsertImage) {
+                      Supplier<List<String>> fontFamilies, Runnable onInsertImage,
+                      String bookFontFamily, int baseFontSizePt) {
         this.activity = activity;
         this.body = body;
         this.fontFamilies = fontFamilies;
         this.onInsertImage = onInsertImage;
+        this.bookFontFamily = bookFontFamily;
+        this.baseFontSizePt = baseFontSizePt;
 
-        buttonRow = new LinearLayout(activity);
-        buttonRow.setOrientation(LinearLayout.HORIZONTAL);
+        firstRow = new LinearLayout(activity);
+        firstRow.setOrientation(LinearLayout.HORIZONTAL);
+        secondRow = new LinearLayout(activity);
+        secondRow.setOrientation(LinearLayout.HORIZONTAL);
+        currentRow = firstRow;
         buildButtons();
 
-        HorizontalScrollView scroll = new HorizontalScrollView(activity);
-        scroll.setHorizontalScrollBarEnabled(false);
-        scroll.addView(buttonRow);
+        HorizontalScrollView firstScroll = scrollOf(firstRow);
+        HorizontalScrollView secondScroll = scrollOf(secondRow);
 
         Button modeButton = baseButton(activity.getString(R.string.fmt_markdown_mode));
         modeButton.setLayoutParams(new LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.WRAP_CONTENT, dp(BUTTON_SIZE_DP)));
         modeButton.setPadding(dp(8), 0, dp(8), 0);
         modeButton.setOnClickListener(v -> {
-            boolean markdownMode = scroll.getVisibility() == View.VISIBLE;
-            scroll.setVisibility(markdownMode ? View.GONE : View.VISIBLE);
+            boolean markdownMode = firstScroll.getVisibility() == View.VISIBLE;
+            int visibility = markdownMode ? View.GONE : View.VISIBLE;
+            firstScroll.setVisibility(visibility);
+            secondScroll.setVisibility(visibility);
             modeButton.setText(activity.getString(markdownMode
                 ? R.string.fmt_markdown_mode_off : R.string.fmt_markdown_mode));
         });
 
+        // 1行目: 固定表示の「Markdown編集」＋装飾ボタン、2行目: 見出しから始まるボタン群。
+        LinearLayout top = new LinearLayout(activity);
+        top.setOrientation(LinearLayout.HORIZONTAL);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+        top.addView(modeButton);
+        top.addView(firstScroll, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
         container.removeAllViews();
-        container.setOrientation(LinearLayout.HORIZONTAL);
-        container.setGravity(Gravity.CENTER_VERTICAL);
-        container.addView(modeButton);
-        container.addView(scroll, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        container.setOrientation(LinearLayout.VERTICAL);
+        container.addView(top);
+        container.addView(secondScroll, new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+    }
+
+    private HorizontalScrollView scrollOf(LinearLayout row) {
+        HorizontalScrollView scroll = new HorizontalScrollView(activity);
+        scroll.setHorizontalScrollBarEnabled(false);
+        scroll.addView(row);
+        return scroll;
     }
 
     private void buildButtons() {
@@ -122,6 +156,10 @@ final class NoteFormatToolbar {
         add(iconButton(R.drawable.ic_align_center, R.string.fmt_align_center, () -> align("center")));
         add(iconButton(R.drawable.ic_align_right, R.string.fmt_align_right, () -> align("right")));
 
+        // ---- 2行目の先頭から: 見出し・リスト・挿入
+        currentRow = secondRow;
+        add(wideButton(activity.getString(R.string.fmt_heading), R.string.fmt_heading_tooltip,
+            this::showHeadingDialog));
         add(textButton("•―", Typeface.BOLD, R.string.fmt_bullet_list,
             () -> edit(t -> MarkdownEditing.toggleBulletList(t, selStart(), selEnd()))));
         add(textButton("1.", Typeface.BOLD, R.string.fmt_numbered_list,
@@ -139,7 +177,44 @@ final class NoteFormatToolbar {
     }
 
     private void add(View button) {
-        buttonRow.addView(button);
+        currentRow.addView(button);
+    }
+
+    /**
+     * 見出しレベル5→1の順に、このブックの標準フォントサイズを基準に実際に表示される大きさで
+     * 1行ずつサンプルを並べたウィンドウ。選んだレベルを本文欄の選択行（無ければカーソル行）に適用する。
+     * WebViewではCSSの1pxが1dpに当たるため、ptは「px換算(pt×4/3)」のsp/dpで表示して実際の見た目に合わせる。
+     */
+    private void showHeadingDialog() {
+        LinearLayout list = new LinearLayout(activity);
+        list.setOrientation(LinearLayout.VERTICAL);
+        list.setPadding(dp(8), dp(4), dp(8), dp(4));
+
+        Typeface family = CustomFontFiles.typeface(activity, bookFontFamily);
+        AlertDialog.Builder builder = new AlertDialog.Builder(activity)
+            .setTitle(activity.getString(R.string.fmt_heading_title, baseFontSizePt))
+            .setView(list)
+            .setNeutralButton(R.string.fmt_heading_clear, (d, which) ->
+                edit(t -> MarkdownEditing.setHeading(t, selStart(), selEnd(), 0)))
+            .setNegativeButton(android.R.string.cancel, null);
+        AlertDialog dialog = builder.create();
+
+        for (int level = MAX_HEADING_LEVEL; level >= HeadingStyles.MIN_LEVEL; level--) {
+            int chosen = level;
+            double pt = HeadingStyles.sizePt(level, baseFontSizePt);
+            TextView row = new TextView(activity);
+            row.setText(activity.getString(R.string.fmt_heading_row_format, level, HeadingStyles.formatPt(pt)));
+            row.setTextSize(TypedValue.COMPLEX_UNIT_SP, (float) (pt * 4.0 / 3.0));
+            row.setTypeface(family, Typeface.BOLD);
+            row.setTextColor(Color.BLACK);
+            row.setPadding(dp(8), dp(10), dp(8), dp(10));
+            row.setOnClickListener(v -> {
+                dialog.dismiss();
+                edit(t -> MarkdownEditing.setHeading(t, selStart(), selEnd(), chosen));
+            });
+            list.addView(row);
+        }
+        dialog.show();
     }
 
     // ---------------------------------------------------------------- 操作

@@ -189,8 +189,7 @@ public class NoteScreen {
             + "a.note-link{color:#2a6ebb;text-decoration:underline;}"
             + "a.footnote{color:#c0392b;text-decoration:none;}"
             + "h1,h2,h3,h4,h5,h6{font-weight:bold;margin:0.8em 0 0.3em;}"
-            + "h1{font-size:1.8em;} h2{font-size:1.5em;} h3{font-size:1.3em;}"
-            + "h4{font-size:1.15em;} h5{font-size:1.05em;} h6{font-size:1em;}"
+            + com.mydictionary.core.markdown.HeadingStyles.css()
             + "</style>" + com.mydictionary.desktop.KatexAssets.headHtml()
             + "</head><body>" + bodyHtml + "</body></html>";
     }
