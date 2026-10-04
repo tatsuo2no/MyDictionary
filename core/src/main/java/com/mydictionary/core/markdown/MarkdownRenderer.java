@@ -25,7 +25,7 @@ public class MarkdownRenderer {
     /**
      * 画像記法。`![alt](path)`の基本形に加え、サイズ指定の拡張構文に対応する。
      * `![alt](path =300x)`（横のみ）・`=x300`（縦のみ）・`=300x300`（縦横）。
-     * group: 1=alt / 2=path / 3=幅 / 4=高さ。中央寄せ（{@link #CENTER_DIRECTIVE_LINE}参照）は
+     * group: 1=alt / 2=path / 3=幅 / 4=高さ。配置（{@link #ALIGN_DIRECTIVE_LINE}参照）は
      * このパターンでは扱わず、render()側でブロック単位に判定してinline()へ渡す。
      */
     private static final Pattern IMAGE = Pattern.compile("!\\[(.*?)]\\((.+?)(?:\\s+=(\\d+)?x(\\d+)?)?\\)");
@@ -39,7 +39,8 @@ public class MarkdownRenderer {
      * ためMarkdownRendererに触れる全画面がクラッシュする重大な不具合だった）。開き・閉じとも必ず
      * エスケープすること。
      */
-    private static final Pattern CENTER_DIRECTIVE_LINE = Pattern.compile("^\\{:\\s*align=\"center\"\\s*\\}$");
+    private static final Pattern ALIGN_DIRECTIVE_LINE =
+        Pattern.compile("^\\{:\\s*align=\"(left|center|right)\"\\s*\\}$", Pattern.CASE_INSENSITIVE);
     private static final Pattern HEADING = Pattern.compile("^(#{1,6})\\s+(.+)$");
     private static final Pattern BR_TAG = Pattern.compile("(?i)<br\\s*/?>");
     private static final Pattern MATH_BLOCK = Pattern.compile("\\$\\$([\\s\\S]+?)\\$\\$");
@@ -109,10 +110,11 @@ public class MarkdownRenderer {
         boolean inCodeBlock = false;
         StringBuilder codeBuffer = new StringBuilder();
         List<String> tableBuffer = new ArrayList<>();
-        // 直前の行に中央寄せ指定({: align="center"})があったかどうか。次に来る画像段落・テーブルにだけ
-        // 適用し、消費したら必ずfalseへ戻す（他のブロック種別に紛れ込んで居座らないようにするため）。
-        boolean centerNextBlock = false;
-        boolean currentTableCentered = false;
+        // 直前の行に配置指定({: align="left|center|right"})があればその値（なければnull）。次に来る
+        // ブロック（段落・見出し・引用・リスト項目・テーブル）にだけ適用し、消費したら必ずnullへ戻す
+        // （他のブロック種別に紛れ込んで居座らないようにするため）。
+        String alignNextBlock = null;
+        String currentTableAlign = null;
 
         for (int i = 0; i < bodyLines.size(); i++) {
             String line = bodyLines.get(i);
@@ -123,8 +125,8 @@ public class MarkdownRenderer {
                     codeBuffer.setLength(0);
                     inCodeBlock = false;
                 } else {
-                    flushParagraph(html, paragraphBuffer, paragraphHardBreaks, footnotes, centerNextBlock);
-                    centerNextBlock = false;
+                    flushParagraph(html, paragraphBuffer, paragraphHardBreaks, footnotes, alignNextBlock);
+                    alignNextBlock = null;
                     inCodeBlock = true;
                 }
                 continue;
@@ -135,103 +137,113 @@ public class MarkdownRenderer {
             }
 
             if (line.trim().startsWith("|")) {
-                flushParagraph(html, paragraphBuffer, paragraphHardBreaks, footnotes, centerNextBlock);
+                flushParagraph(html, paragraphBuffer, paragraphHardBreaks, footnotes, alignNextBlock);
                 if (tableBuffer.isEmpty()) {
-                    currentTableCentered = centerNextBlock;
+                    currentTableAlign = alignNextBlock;
                 }
-                centerNextBlock = false;
+                alignNextBlock = null;
                 tableBuffer.add(line.trim());
                 boolean nextIsTable = i + 1 < bodyLines.size() && bodyLines.get(i + 1).trim().startsWith("|");
                 if (!nextIsTable) {
-                    html.append(renderTable(tableBuffer, currentTableCentered));
+                    html.append(renderTable(tableBuffer, currentTableAlign));
                     tableBuffer.clear();
-                    currentTableCentered = false;
+                    currentTableAlign = null;
                 }
                 continue;
             }
 
             String trimmed = line.trim();
 
-            if (CENTER_DIRECTIVE_LINE.matcher(trimmed).matches()) {
-                flushParagraph(html, paragraphBuffer, paragraphHardBreaks, footnotes, centerNextBlock);
-                centerNextBlock = true;
+            Matcher alignDirective = ALIGN_DIRECTIVE_LINE.matcher(trimmed);
+            if (alignDirective.matches()) {
+                flushParagraph(html, paragraphBuffer, paragraphHardBreaks, footnotes, alignNextBlock);
+                alignNextBlock = alignDirective.group(1).toLowerCase();
                 continue;
             }
 
             if (trimmed.matches("^(\\*\\*\\*|---)$")) {
-                flushParagraph(html, paragraphBuffer, paragraphHardBreaks, footnotes, centerNextBlock);
-                centerNextBlock = false;
+                flushParagraph(html, paragraphBuffer, paragraphHardBreaks, footnotes, alignNextBlock);
+                alignNextBlock = null;
                 html.append("<hr/>\n");
                 continue;
             }
 
             Matcher heading = HEADING.matcher(trimmed);
+            // 配置指定の直後に直接このブロックが来た場合（保留中の段落が無い場合）だけ、
+            // その指定をこのブロック自身に適用する。保留中の段落があるなら指定はその段落のものなので、
+            // flushParagraph側で消費される。
+            String ownAlign = paragraphBuffer.isEmpty() ? alignNextBlock : null;
+
             if (heading.matches()) {
-                flushParagraph(html, paragraphBuffer, paragraphHardBreaks, footnotes, centerNextBlock);
-                centerNextBlock = false;
+                flushParagraph(html, paragraphBuffer, paragraphHardBreaks, footnotes, alignNextBlock);
+                alignNextBlock = null;
                 int level = heading.group(1).length();
-                html.append("<h").append(level).append('>')
+                html.append("<h").append(level).append(alignStyleAttr(ownAlign)).append('>')
                     .append(inline(heading.group(2), footnotes))
                     .append("</h").append(level).append(">\n");
                 continue;
             }
 
             if (trimmed.startsWith("> ")) {
-                flushParagraph(html, paragraphBuffer, paragraphHardBreaks, footnotes, centerNextBlock);
-                centerNextBlock = false;
-                html.append("<blockquote>").append(inline(trimmed.substring(2), footnotes)).append("</blockquote>\n");
+                flushParagraph(html, paragraphBuffer, paragraphHardBreaks, footnotes, alignNextBlock);
+                alignNextBlock = null;
+                html.append("<blockquote").append(alignStyleAttr(ownAlign)).append('>')
+                    .append(inline(trimmed.substring(2), footnotes)).append("</blockquote>\n");
                 continue;
             }
 
             if (trimmed.startsWith("- [ ] ") || trimmed.startsWith("- [x] ")) {
-                flushParagraph(html, paragraphBuffer, paragraphHardBreaks, footnotes, centerNextBlock);
-                centerNextBlock = false;
+                flushParagraph(html, paragraphBuffer, paragraphHardBreaks, footnotes, alignNextBlock);
+                alignNextBlock = null;
                 boolean checked = trimmed.startsWith("- [x] ");
                 String text = trimmed.substring(6);
-                html.append("<div class=\"checkbox-item\"><input type=\"checkbox\" disabled")
+                html.append("<div class=\"checkbox-item\"").append(alignStyleAttr(ownAlign))
+                    .append("><input type=\"checkbox\" disabled")
                     .append(checked ? " checked" : "").append("/> ")
                     .append(inline(text, footnotes)).append("</div>\n");
                 continue;
             }
 
             if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
-                flushParagraph(html, paragraphBuffer, paragraphHardBreaks, footnotes, centerNextBlock);
-                centerNextBlock = false;
-                html.append("<li>").append(inline(trimmed.substring(2), footnotes)).append("</li>\n");
+                flushParagraph(html, paragraphBuffer, paragraphHardBreaks, footnotes, alignNextBlock);
+                alignNextBlock = null;
+                html.append("<li").append(alignStyleAttr(ownAlign)).append('>')
+                    .append(inline(trimmed.substring(2), footnotes)).append("</li>\n");
                 continue;
             }
 
             if (trimmed.matches("^\\d+\\.\\s.+")) {
-                flushParagraph(html, paragraphBuffer, paragraphHardBreaks, footnotes, centerNextBlock);
-                centerNextBlock = false;
+                flushParagraph(html, paragraphBuffer, paragraphHardBreaks, footnotes, alignNextBlock);
+                alignNextBlock = null;
                 String text = trimmed.replaceFirst("^\\d+\\.\\s", "");
-                html.append("<li class=\"ordered\">").append(inline(text, footnotes)).append("</li>\n");
+                html.append("<li class=\"ordered\"").append(alignStyleAttr(ownAlign)).append('>')
+                    .append(inline(text, footnotes)).append("</li>\n");
                 continue;
             }
 
             if (trimmed.startsWith(": ")) {
-                flushParagraph(html, paragraphBuffer, paragraphHardBreaks, footnotes, centerNextBlock);
-                centerNextBlock = false;
+                flushParagraph(html, paragraphBuffer, paragraphHardBreaks, footnotes, alignNextBlock);
+                alignNextBlock = null;
                 html.append("<dd>").append(inline(trimmed.substring(2), footnotes)).append("</dd>\n");
                 continue;
             }
 
             if (trimmed.isEmpty()) {
-                flushParagraph(html, paragraphBuffer, paragraphHardBreaks, footnotes, centerNextBlock);
-                centerNextBlock = false;
+                flushParagraph(html, paragraphBuffer, paragraphHardBreaks, footnotes, alignNextBlock);
+                alignNextBlock = null;
                 continue;
             }
 
             paragraphBuffer.add(trimmed);
             paragraphHardBreaks.add(line.endsWith("  "));
         }
-        flushParagraph(html, paragraphBuffer, paragraphHardBreaks, footnotes, centerNextBlock);
+        flushParagraph(html, paragraphBuffer, paragraphHardBreaks, footnotes, alignNextBlock);
 
         return wrapListItems(html.toString());
     }
 
     private void flushParagraph(StringBuilder html, List<String> buffer, List<Boolean> hardBreaks,
-                                 Map<String, String> footnotes, boolean centered) {
+                                 Map<String, String> footnotes, String align) {
         if (buffer.isEmpty()) {
             return;
         }
@@ -246,18 +258,25 @@ public class MarkdownRenderer {
         // text-align:centerで段落内の文章そのものを中央寄せにする。画像はCSSでdisplay:blockに
         // しているためこれだけでは効かないので、inline()側で画像自体にもmargin:0 autoを別途適用する
         // （キャプション文＋画像のような混在段落でも両方中央に揃う）。
-        html.append("<p").append(centered ? " style=\"text-align:center;\"" : "").append('>')
-            .append(inline(joined.toString(), footnotes, centered)).append("</p>\n");
+        html.append("<p").append(alignStyleAttr(align)).append('>')
+            .append(inline(joined.toString(), footnotes, align)).append("</p>\n");
         buffer.clear();
         hardBreaks.clear();
     }
 
-    private String renderTable(List<String> rows, boolean centered) {
+    /** 配置値(left/center/right)をstyle属性（先頭に空白付き）に変換する。nullなら空文字。 */
+    private static String alignStyleAttr(String align) {
+        return align == null ? "" : " style=\"text-align:" + align + ";\"";
+    }
+
+    private String renderTable(List<String> rows, String align) {
         StringBuilder sb = new StringBuilder("<table");
-        if (centered) {
+        if ("center".equals(align)) {
             // tableは既定でshrink-to-fit幅のブロック要素なので、margin:autoで中央寄せできる
             // （画像と違いdisplay:blockへの上書きは不要）。
             sb.append(" style=\"margin:0 auto;\"");
+        } else if ("right".equals(align)) {
+            sb.append(" style=\"margin-left:auto;margin-right:0;\"");
         }
         sb.append(">\n");
         for (int r = 0; r < rows.size(); r++) {
@@ -329,14 +348,14 @@ public class MarkdownRenderer {
     }
 
     private String inline(String text, Map<String, String> footnotes) {
-        return inline(text, footnotes, false);
+        return inline(text, footnotes, null);
     }
 
     /**
-     * centerImagesがtrueのとき、このinline()呼び出しで出てくる画像すべてに中央寄せスタイルを適用する
-     * （{@link #CENTER_DIRECTIVE_LINE}をrender()がブロック単位で判定し、対象の段落にだけ渡す）。
+     * imageAlignが"center"/"right"のとき、このinline()呼び出しで出てくる画像すべてに配置スタイルを適用する
+     * （{@link #ALIGN_DIRECTIVE_LINE}をrender()がブロック単位で判定し、対象の段落にだけ渡す）。
      */
-    private String inline(String text, Map<String, String> footnotes, boolean centerImages) {
+    private String inline(String text, Map<String, String> footnotes, String imageAlign) {
         // 数式($...$・$$...$$)は中身にMarkdown記法と紛らわしい記号（*, _, `など）を含みうるため、
         // 真っ先に退避させ、他のどの処理にも一切手を加えられないようにする。
         List<String> mathSegments = new ArrayList<>();
@@ -376,10 +395,12 @@ public class MarkdownRenderer {
             if (height != null && !height.isEmpty()) {
                 img.append(" height=\"").append(height).append('"');
             }
-            if (centerImages) {
+            if ("center".equals(imageAlign)) {
                 // imgは全体CSSでdisplay:blockにしているため、親のtext-alignでは中央寄せできない。
                 // ブロック要素自体をmargin:autoで中央寄せする。
                 img.append(" style=\"display:block;margin:0 auto;\"");
+            } else if ("right".equals(imageAlign)) {
+                img.append(" style=\"display:block;margin:0 0 0 auto;\"");
             }
             img.append("/>");
 

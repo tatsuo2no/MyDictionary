@@ -25,6 +25,40 @@ class MarkdownRendererTest {
     }
 
     @Test
+    void rightAlignsParagraphAndImageAndTable() {
+        assertTrue(renderer.render("{: align=\"right\"}\n文章").contains("<p style=\"text-align:right;\">文章</p>"));
+        assertTrue(renderer.render("{: align=\"right\"}\n![写真](a.png)").contains("margin:0 0 0 auto;"));
+        assertTrue(renderer.render("{: align=\"right\"}\n|a|b|\n|---|---|\n|1|2|")
+            .contains("<table style=\"margin-left:auto;margin-right:0;\">"));
+    }
+
+    @Test
+    void alignDirectiveAppliesToHeadingQuoteAndListItems() {
+        assertTrue(renderer.render("{: align=\"center\"}\n# 見出し").contains("<h1 style=\"text-align:center;\">見出し</h1>"));
+        assertTrue(renderer.render("{: align=\"right\"}\n> 引用")
+            .contains("<blockquote style=\"text-align:right;\">引用</blockquote>"));
+        String list = renderer.render("{: align=\"center\"}\n- 項目\n- 次");
+        assertTrue(list.contains("<li style=\"text-align:center;\">項目</li>"));
+        assertTrue(list.contains("<li>次</li>"));
+        assertTrue(renderer.render("{: align=\"center\"}\n1. 項目").contains("<li class=\"ordered\" style=\"text-align:center;\">"));
+    }
+
+    @Test
+    void alignDirectiveBeforeParagraphDoesNotLeakToFollowingHeading() {
+        String html = renderer.render("{: align=\"center\"}\n文章\n# 見出し");
+        assertTrue(html.contains("<p style=\"text-align:center;\">文章</p>"));
+        assertTrue(html.contains("<h1>見出し</h1>"));
+    }
+
+    @Test
+    void passesThroughSpanWithColorBackgroundFontFamilyAndSize() {
+        String html = renderer.render("<span style=\"color:crimson;background-color:lightyellow;"
+            + "font-family:'Meiryo UI';font-size:20pt\">装飾</span>");
+        assertTrue(html.contains("<span style=\"color:crimson;background-color:lightyellow;"
+            + "font-family:'Meiryo UI';font-size:20pt\">装飾</span>"));
+    }
+
+    @Test
     void rendersTrailingDoubleSpaceAsHardLineBreak() {
         String html = renderer.render("1行目  \n2行目");
         assertTrue(html.contains("1行目<br/>"));

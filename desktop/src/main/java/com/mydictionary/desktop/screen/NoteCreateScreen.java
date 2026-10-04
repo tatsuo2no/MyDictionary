@@ -192,15 +192,13 @@ public class NoteCreateScreen {
         bodyArea.setStyle("-fx-font-family: monospace;");
         VBox.setVgrow(bodyArea, Priority.ALWAYS);
 
-        Button insertImageButton = new Button("画像を挿入");
-        insertImageButton.setOnAction(e -> onInsertImage());
+        NoteFormatToolbar formatToolbar = new NoteFormatToolbar(bodyArea,
+            () -> java.util.Arrays.stream(com.mydictionary.core.model.BookFont.values())
+                .map(com.mydictionary.core.model.BookFont::getFamilyName).toList(),
+            this::onInsertImage, this::showPreview);
 
-        Button showPreviewButton = new Button("プレビューを表示");
-        showPreviewButton.setOnAction(e -> showPreview());
-
-        HBox bodyToolbar = new HBox(8, insertImageButton, showPreviewButton);
-
-        VBox rightPanel = new VBox(8, new Label("本文（Markdown風記法が使用できます）"), bodyToolbar, bodyArea);
+        VBox rightPanel = new VBox(8, new Label("本文（ツールバーで書式を設定できます。Markdown風記法も直接入力できます）"),
+            formatToolbar.getNode(), bodyArea);
         HBox.setHgrow(rightPanel, Priority.ALWAYS);
 
         HBox splitRow = new HBox(16, leftScroll, rightPanel);
