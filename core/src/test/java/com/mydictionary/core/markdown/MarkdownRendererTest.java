@@ -2,11 +2,25 @@ package com.mydictionary.core.markdown;
 
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MarkdownRendererTest {
 
     private final MarkdownRenderer renderer = new MarkdownRenderer();
+
+    @Test
+    void editorRenderWrapsMathInSourceCarryingSpan() {
+        String html = renderer.renderForEditor("式 $a<b$ と $$x^2$$");
+        assertTrue(html.contains("<span class=\"md-atom\" contenteditable=\"false\" data-md=\"$a&lt;b$\">$a&lt;b$</span>"), html);
+        assertTrue(html.contains("data-md=\"$$x^2$$\""), html);
+    }
+
+    @Test
+    void normalRenderLeavesMathUnwrappedAndEditorModeDoesNotLeak() {
+        renderer.renderForEditor("$x$");
+        assertEquals("<p>$x$</p>\n", renderer.render("$x$"));
+    }
 
     @Test
     void rendersHeadingAndEmphasis() {

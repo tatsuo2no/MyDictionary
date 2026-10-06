@@ -1,7 +1,7 @@
 package com.mydictionary.desktop.screen;
 
 import com.mydictionary.core.markdown.HeadingStyles;
-import com.mydictionary.core.markdown.MarkdownEditing;
+import com.mydictionary.desktop.editor.RichNoteEditor;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.geometry.Point2D;
@@ -11,11 +11,9 @@ import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Dialog;
-import javafx.scene.control.IndexRange;
 import javafx.scene.control.Label;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.Separator;
-import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TextInputDialog;
 import javafx.scene.control.ToggleButton;
@@ -36,14 +34,14 @@ import javafx.stage.Popup;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.function.Function;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
- * ノート編集画面の本文欄の上に置く書式設定ツールバー。ボタンを押すと、本文欄（TextArea）で選択中の範囲に
- * Markdown風記法を自動で挿入/解除する（実際の変換ロジックは両OS共通の{@link MarkdownEditing}）。
+ * ノート編集画面の本文欄の上に置く書式設定ツールバー。ボタンを押すと、WYSIWYGエディタ
+ * （{@link RichNoteEditor}）で選択中の範囲・カーソル位置に書式を適用する。
  * 数式（TeX記法）などGUIでは却って編集しにくい記法を手で書くための「Markdown編集」切替ボタンで、
- * 書式ボタンを隠してソースだけを見せることもできる。
+ * 書式ボタンを隠してMarkdownのソース表示へ切り替えることもできる（切替の実処理は呼び出し側）。
  */
 final class NoteFormatToolbar {
     private static final String[] FONT_SIZES_PT = {
@@ -51,7 +49,7 @@ final class NoteFormatToolbar {
     private static final int MAX_TABLE_ROWS = 100;
     private static final int MAX_TABLE_COLUMNS = 20;
 
-    private final TextArea area;
+    private final RichNoteEditor editor;
     private final Supplier<List<String>> fontFamilies;
     private final Runnable onInsertImage;
     /** 見出しウィンドウに出す見出しレベルは1〜5（レベル6は本文と同じ大きさなので出さない）。 */
@@ -70,31 +68,32 @@ final class NoteFormatToolbar {
      * bookFontFamily・baseFontSizePtは、見出しウィンドウで「ノートで実際に表示される大きさ」を
      * サンプル表示するための、このブックの本文フォントと標準サイズ(pt)。
      */
-    NoteFormatToolbar(TextArea area, Supplier<List<String>> fontFamilies, Runnable onInsertImage,
-                      Runnable onShowPreview, String bookFontFamily, int baseFontSizePt) {
-        this.area = area;
+    NoteFormatToolbar(RichNoteEditor editor, Supplier<List<String>> fontFamilies, Runnable onInsertImage,
+                      Runnable onShowPreview, Consumer<Boolean> onMarkdownMode, String bookFontFamily,
+                      int baseFontSizePt) {
+        this.editor = editor;
         this.fontFamilies = fontFamilies;
         this.onInsertImage = onInsertImage;
         this.bookFontFamily = bookFontFamily;
         this.baseFontSizePt = baseFontSizePt;
         root.getChildren().addAll(firstRow, secondRow);
-        build(onShowPreview);
+        build(onShowPreview, onMarkdownMode);
     }
 
     Node getNode() {
         return root;
     }
 
-    private void build(Runnable onShowPreview) {
+    private void build(Runnable onShowPreview, Consumer<Boolean> onMarkdownMode) {
         // フォント
         addFormat(textButton(styledText("B", FontWeight.BOLD, FontPosture.REGULAR, false, false), "太字",
-            () -> wrap("**")));
+            editor::bold));
         addFormat(textButton(styledText("I", FontWeight.NORMAL, FontPosture.ITALIC, false, false), "斜体",
-            () -> wrap("*")));
+            editor::italic));
         addFormat(textButton(styledText("U", FontWeight.NORMAL, FontPosture.REGULAR, true, false), "下線",
-            () -> wrap("__")));
+            editor::underline));
         addFormat(textButton(styledText("S", FontWeight.NORMAL, FontPosture.REGULAR, false, true), "打ち消し線",
-            () -> wrap("~~")));
+            editor::strikethrough));
 
         Button textColorButton = textButton(colorGraphic("A", Color.RED, false), "文字色", null);
         textColorButton.setOnAction(e -> NamedColorPicker.show(textColorButton, "文字色",
@@ -133,22 +132,17 @@ final class NoteFormatToolbar {
         addFormat(separator());
 
         // リスト
-        addFormat(textButton(listIcon("•―\n•―\n•―"), "番号なしリスト",
-            () -> edit(s -> MarkdownEditing.toggleBulletList(s, selStart(), selEnd()))));
-        addFormat(textButton(listIcon("1―\n2―\n3―"), "番号付きリスト",
-            () -> edit(s -> MarkdownEditing.toggleNumberedList(s, selStart(), selEnd()))));
+        addFormat(textButton(listIcon("•―\n•―\n•―"), "番号なしリスト", editor::toggleBulletList));
+        addFormat(textButton(listIcon("1―\n2―\n3―"), "番号付きリスト", editor::toggleNumberedList));
         addFormat(separator());
 
         // 挿入
         addFormat(iconButton(photoIcon(), "画像挿入", onInsertImage));
         addFormat(textButton(boldText("田", 16), "テーブル挿入", this::onInsertTable));
-        addFormat(textButton(boldText("―", 14), "水平線挿入",
-            () -> edit(s -> MarkdownEditing.insertHorizontalRule(s, selStart(), selEnd()))));
-        addFormat(textButton(boldText("＞", 14), "引用",
-            () -> edit(s -> MarkdownEditing.toggleQuote(s, selStart(), selEnd()))));
-        addFormat(textButton(boldText("”", 16), "インラインコード", () -> wrap("`")));
-        addFormat(textButton(boldText("</>", 12), "コードブロック",
-            () -> edit(s -> MarkdownEditing.wrapCodeBlock(s, selStart(), selEnd()))));
+        addFormat(textButton(boldText("―", 14), "水平線挿入", editor::insertHorizontalRule));
+        addFormat(textButton(boldText("＞", 14), "引用", editor::toggleQuote));
+        addFormat(textButton(boldText("”", 16), "インラインコード", editor::inlineCode));
+        addFormat(textButton(boldText("</>", 12), "コードブロック", editor::toggleCodeBlock));
 
         ToggleButton markdownModeButton = new ToggleButton("Markdown編集");
         markdownModeButton.setFocusTraversable(false);
@@ -159,6 +153,7 @@ final class NoteFormatToolbar {
                 node.setVisible(!selected);
                 node.setManaged(!selected);
             }
+            onMarkdownMode.accept(selected);
         });
 
         Button previewButton = new Button("プレビューを表示");
@@ -202,7 +197,7 @@ final class NoteFormatToolbar {
             row.setOnMouseExited(e -> row.setStyle(normal));
             row.setOnAction(e -> {
                 popup.hide();
-                edit(s -> MarkdownEditing.setHeading(s, selStart(), selEnd(), chosen));
+                editor.setHeading(chosen);
             });
             box.getChildren().add(row);
         }
@@ -211,7 +206,7 @@ final class NoteFormatToolbar {
         clear.setFocusTraversable(false);
         clear.setOnAction(e -> {
             popup.hide();
-            edit(s -> MarkdownEditing.setHeading(s, selStart(), selEnd(), 0));
+            editor.setHeading(0);
         });
         box.getChildren().add(clear);
         VBox.setMargin(clear, new Insets(6, 0, 0, 0));
@@ -223,40 +218,12 @@ final class NoteFormatToolbar {
 
     // ---------------------------------------------------------------- 操作
 
-    private int selStart() {
-        IndexRange selection = area.getSelection();
-        return selection.getStart();
-    }
-
-    private int selEnd() {
-        IndexRange selection = area.getSelection();
-        return selection.getEnd();
-    }
-
-    /** 現在の本文を変換関数に渡し、結果を本文欄へ反映する。 */
-    private void edit(Function<String, MarkdownEditing.Result> transform) {
-        applyResult(transform.apply(area.getText()));
-    }
-
-    private void wrap(String marker) {
-        applyResult(MarkdownEditing.toggleWrap(area.getText(), selStart(), selEnd(), marker));
-    }
-
     private void applyStyle(String property, String value) {
-        applyResult(MarkdownEditing.setSpanStyle(area.getText(), selStart(), selEnd(), property, value));
+        editor.setStyle(property, value);
     }
 
     private void align(String align) {
-        applyResult(MarkdownEditing.setAlignment(area.getText(), selStart(), selEnd(), align));
-    }
-
-    private void applyResult(MarkdownEditing.Result result) {
-        String old = area.getText();
-        if (!result.text().equals(old)) {
-            area.replaceText(0, old.length(), result.text());
-        }
-        area.selectRange(result.selectionStart(), result.selectionEnd());
-        area.requestFocus();
+        editor.align(align);
     }
 
     private void showFontMenu(Node anchor) {
@@ -287,9 +254,8 @@ final class NoteFormatToolbar {
     }
 
     private void onRuby() {
-        int s = selStart();
-        int e = selEnd();
-        if (s == e) {
+        String selected = editor.selectedText();
+        if (selected.isBlank()) {
             Alert alert = new Alert(Alert.AlertType.INFORMATION,
                 "ふりがなを付ける文字を本文欄で選択してから押してください。", ButtonType.OK);
             alert.setHeaderText(null);
@@ -298,12 +264,11 @@ final class NoteFormatToolbar {
         }
         TextInputDialog dialog = new TextInputDialog();
         dialog.setTitle("ルビ");
-        dialog.setHeaderText("「" + area.getText().substring(s, e).trim() + "」のふりがなを入力してください\n"
+        dialog.setHeaderText("「" + selected.trim() + "」のふりがなを入力してください\n"
             + "（空欄で決定すると、既に付いているルビを外します）");
         dialog.setContentText("ふりがな");
         Optional<String> reading = dialog.showAndWait();
-        reading.ifPresent(value ->
-            applyResult(MarkdownEditing.applyRuby(area.getText(), s, e, value)));
+        reading.ifPresent(editor::setRuby);
     }
 
     private void onInsertTable() {
@@ -341,8 +306,7 @@ final class NoteFormatToolbar {
                 parseInRange(columnsField.getText(), MAX_TABLE_COLUMNS)}
             : null);
 
-        dialog.showAndWait().ifPresent(size -> applyResult(
-            MarkdownEditing.insertTable(area.getText(), selStart(), selEnd(), size[0], size[1])));
+        dialog.showAndWait().ifPresent(size -> editor.insertTable(size[0], size[1]));
     }
 
     private static Integer parseInRange(String text, int max) {

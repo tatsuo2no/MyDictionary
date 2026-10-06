@@ -32,6 +32,8 @@ dependencies {
     implementation 'org.sejda.imageio:webp-imageio:0.1.6'
     // woff2フォントの展開(Brotli)用。純Java実装でネイティブ依存なし。
     implementation 'org.brotli:dec:0.1.2'
+    // WYSIWYGエディタのHTML(contenteditable)→Markdown変換用のHTMLパーサー。
+    implementation 'org.jsoup:jsoup:1.18.3'
 
     testImplementation platform('org.junit:junit-bom:5.11.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'

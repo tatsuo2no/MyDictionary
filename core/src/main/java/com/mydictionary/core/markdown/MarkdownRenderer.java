@@ -88,6 +88,23 @@ public class MarkdownRenderer {
      *  目印として一時的に埋め込む（最終的にinline()の末尾で実際の&lt;br/&gt;に置き換える）。 */
     private static final String HARD_BREAK_MARKER = " HARD_BREAK ";
 
+    /** 編集画面用の描画モード中か（数式を、編集で壊されないよう原文つきの単位として出力する）。 */
+    private boolean editorMode;
+
+    /**
+     * 編集画面（WYSIWYGエディタ）に読み込む用のHTMLを返す。{@link #render}との違いは、数式($...$・$$...$$)を
+     * {@code <span class="md-atom" contenteditable="false" data-md="原文">}で包む点だけ。画面側が数式を
+     * KaTeXで描画して中身を差し替えても、{@code data-md}の原文からMarkdownへ戻せる。
+     */
+    public String renderForEditor(String markdown) {
+        editorMode = true;
+        try {
+            return render(markdown);
+        } finally {
+            editorMode = false;
+        }
+    }
+
     public String render(String markdown) {
         if (markdown == null) {
             return "";
@@ -469,7 +486,13 @@ public class MarkdownRenderer {
         StringBuilder sb = new StringBuilder();
         while (matcher.find()) {
             int index = Integer.parseInt(matcher.group(1));
-            matcher.appendReplacement(sb, Matcher.quoteReplacement(escapeHtml(store.get(index))));
+            String source = store.get(index);
+            String html = escapeHtml(source);
+            if (editorMode) {
+                html = "<span class=\"md-atom\" contenteditable=\"false\" data-md=\""
+                    + html.replace("\"", "&quot;") + "\">" + html + "</span>";
+            }
+            matcher.appendReplacement(sb, Matcher.quoteReplacement(html));
         }
         matcher.appendTail(sb);
         return sb.toString();

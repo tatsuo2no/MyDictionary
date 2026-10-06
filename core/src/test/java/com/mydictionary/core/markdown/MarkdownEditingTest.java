@@ -172,9 +172,60 @@ class MarkdownEditingTest {
     }
 
     @Test
-    void alignsWholeMultiLineParagraphWithOneDirective() {
-        MarkdownEditing.Result r = MarkdownEditing.setAlignment("一行目\n二行目\n\n別段落", 4, 4, "right");
-        assertEquals("{: align=\"right\"}\n一行目\n二行目\n\n別段落", r.text());
+    void alignsOnlyTheCaretLineOfAMultiLineParagraph() {
+        // 2行目(カーソル行)だけを右揃えにし、3行目は元の配置(左)に戻す。1行目は段落の前半として左のまま。
+        MarkdownEditing.Result r = MarkdownEditing.setAlignment("一行目\n二行目\n三行目", 5, 5, "right");
+        assertEquals("一行目\n{: align=\"right\"}\n二行目\n{: align=\"left\"}\n三行目", r.text());
+    }
+
+    @Test
+    void alignsImageLineAloneNotTheCaptionAbove() {
+        String text = "キャプション\n![図](a.png)";
+        MarkdownEditing.Result r = MarkdownEditing.setAlignment(text, 10, 10, "center");
+        assertEquals("キャプション\n{: align=\"center\"}\n![図](a.png)", r.text());
+        String html = new MarkdownRenderer().render(r.text());
+        assertTrue(html.contains("<p>キャプション</p>"), html);
+        assertTrue(html.contains("margin:0 auto"), html);
+    }
+
+    @Test
+    void alignsFirstLineOfParagraphAndKeepsRestLeft() {
+        MarkdownEditing.Result r = MarkdownEditing.setAlignment("一行目\n二行目", 0, 0, "center");
+        assertEquals("{: align=\"center\"}\n一行目\n{: align=\"left\"}\n二行目", r.text());
+    }
+
+    @Test
+    void alignsSelectedLinesTogetherWithOneDirective() {
+        MarkdownEditing.Result r = MarkdownEditing.setAlignment("a\nb\nc\nd", 2, 5, "center");
+        assertEquals("a\n{: align=\"center\"}\nb\nc\n{: align=\"left\"}\nd", r.text());
+    }
+
+    @Test
+    void leftOnLineInsideAlignedParagraphSplitsOnlyThatLine() {
+        String text = "{: align=\"center\"}\n一\n二\n三";
+        MarkdownEditing.Result r = MarkdownEditing.setAlignment(text, text.indexOf('二'), text.indexOf('二'), "left");
+        // 一と三は中央のまま、二だけ左。
+        assertEquals("{: align=\"center\"}\n一\n{: align=\"left\"}\n二\n{: align=\"center\"}\n三", r.text());
+    }
+
+    @Test
+    void leftOnHeadOfAlignedParagraphKeepsTheRestAligned() {
+        String text = "{: align=\"center\"}\n一\n二";
+        MarkdownEditing.Result r = MarkdownEditing.setAlignment(text, text.indexOf('一'), text.indexOf('一'), "left");
+        assertEquals("一\n{: align=\"center\"}\n二", r.text());
+    }
+
+    @Test
+    void sameAlignmentInsideAlignedParagraphChangesNothing() {
+        String text = "{: align=\"center\"}\n一\n二";
+        MarkdownEditing.Result r = MarkdownEditing.setAlignment(text, text.indexOf('二'), text.indexOf('二'), "center");
+        assertEquals(text, r.text());
+    }
+
+    @Test
+    void lastLineOfParagraphNeedsNoTrailingDirective() {
+        MarkdownEditing.Result r = MarkdownEditing.setAlignment("一\n二", 2, 2, "right");
+        assertEquals("一\n{: align=\"right\"}\n二", r.text());
     }
 
     @Test

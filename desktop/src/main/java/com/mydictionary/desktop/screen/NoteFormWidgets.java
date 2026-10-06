@@ -1,5 +1,7 @@
 package com.mydictionary.desktop.screen;
 
+import com.mydictionary.core.markdown.HeadingStyles;
+import com.mydictionary.core.model.Book;
 import com.mydictionary.core.model.BookTheme;
 import com.mydictionary.core.model.NoteTextColor;
 import com.mydictionary.desktop.FileUrls;
@@ -48,6 +50,24 @@ final class NoteFormWidgets {
                 setGraphic(swatch);
             }
         };
+    }
+
+    /**
+     * ノート編集画面の本文（プレビューと、WYSIWYG編集欄）に共通のCSS。本文のフォント・文字サイズ・
+     * 表・引用・コード・画像・見出しの見た目をここで一本化し、編集中と確認用の表示がずれないようにする。
+     */
+    static String editorDocumentCss(Book book, String bodyAppearance) {
+        return com.mydictionary.desktop.font.FontLibrary.fontFaceCss()
+            + "body{font-family:'" + book.getEffectiveFontFamily() + "', sans-serif; font-size:"
+            + book.getFontSizePt() + "pt; padding:12px; line-height:1.6;"
+            + bodyAppearance + "}"
+            + "table{border-collapse:collapse;} td,th{border:1px solid #999;padding:4px 8px;}"
+            + "blockquote{border-left:4px solid #999;margin:8px 0;padding:4px 12px;color:#555;}"
+            + "pre{background:#f4f4f4;padding:8px;overflow-x:auto;}"
+            + "rt{font-size:0.6em;}"
+            + "img{max-width:100%;display:block;margin:8px 0;}"
+            + "h1,h2,h3,h4,h5,h6{font-weight:bold;margin:0.8em 0 0.3em;}"
+            + HeadingStyles.css();
     }
 
     /**

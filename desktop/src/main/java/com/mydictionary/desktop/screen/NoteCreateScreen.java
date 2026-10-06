@@ -13,6 +13,7 @@ import com.mydictionary.desktop.db.SqliteDatabase;
 import com.mydictionary.desktop.db.SqliteNoteColumnRepository;
 import com.mydictionary.desktop.db.SqliteNoteRepository;
 import com.mydictionary.desktop.db.SqliteTagRepository;
+import com.mydictionary.desktop.editor.RichNoteEditor;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
@@ -74,7 +75,10 @@ public class NoteCreateScreen {
     private List<NoteColumn> columns;
     private final Map<Long, TextField> columnFields = new LinkedHashMap<>();
 
+    private RichNoteEditor richEditor;
+    /** 「Markdown編集」中の本文欄。通常は隠れており、Markdown編集中だけ表示して本文の原本になる。 */
     private TextArea bodyArea;
+    private boolean markdownMode;
     private WebView previewWebView;
     private Label errorLabel;
     private FlowPane selectedTagsPane;
@@ -187,12 +191,30 @@ public class NoteCreateScreen {
         leftScroll.setMinWidth(280);
         leftScroll.setStyle("-fx-background-color: transparent;");
 
-        bodyArea = new TextArea(existingNote != null ? existingNote.getBody() : "");
+        String initialBody = existingNote != null ? existingNote.getBody() : "";
+
+        // 通常は、記法を見せずに仕上がりの見た目のまま編集するエディタを表示する。
+        // 「Markdown編集」を押している間だけ、同じ本文をMarkdownのまま編集するテキスト欄に切り替える。
+        richEditor = new RichNoteEditor(
+            NoteFormWidgets.editorDocumentCss(book, ""),
+            com.mydictionary.desktop.KatexAssets.headHtml(),
+            MainApp.IMAGE_DIR.resolve("_note_editor.html"));
+        richEditor.setMarkdown(initialBody);
+        applyEditorAppearance();
+        backgroundThemeCombo.valueProperty().addListener((obs, o, n) -> applyEditorAppearance());
+        textColorCombo.valueProperty().addListener((obs, o, n) -> applyEditorAppearance());
+
+        bodyArea = new TextArea(initialBody);
         bodyArea.setWrapText(true);
         bodyArea.setStyle("-fx-font-family: monospace;");
-        VBox.setVgrow(bodyArea, Priority.ALWAYS);
+        bodyArea.setVisible(false);
+        bodyArea.setManaged(false);
 
-        NoteFormatToolbar formatToolbar = new NoteFormatToolbar(bodyArea,
+        StackPane bodyStack = new StackPane(richEditor.getNode(), bodyArea);
+        bodyStack.setStyle("-fx-border-color: #b0b0b0; -fx-border-width: 1;");
+        VBox.setVgrow(bodyStack, Priority.ALWAYS);
+
+        NoteFormatToolbar formatToolbar = new NoteFormatToolbar(richEditor,
             () -> {
                 List<String> families = new ArrayList<>(java.util.Arrays.stream(
                     com.mydictionary.core.model.BookFont.values())
@@ -200,10 +222,12 @@ public class NoteCreateScreen {
                 families.addAll(com.mydictionary.desktop.font.FontLibrary.families());
                 return families;
             },
-            this::onInsertImage, this::showPreview, book.getEffectiveFontFamily(), book.getFontSizePt());
+            this::onInsertImage, this::showPreview, this::onMarkdownModeChanged,
+            book.getEffectiveFontFamily(), book.getFontSizePt());
 
-        VBox rightPanel = new VBox(8, new Label("本文（ツールバーで書式を設定できます。Markdown風記法も直接入力できます）"),
-            formatToolbar.getNode(), bodyArea);
+        VBox rightPanel = new VBox(8,
+            new Label("本文（ツールバーで書式を設定できます。「Markdown編集」でMarkdownの記法を直接編集できます）"),
+            formatToolbar.getNode(), bodyStack);
         HBox.setHgrow(rightPanel, Priority.ALWAYS);
 
         HBox splitRow = new HBox(16, leftScroll, rightPanel);
@@ -380,10 +404,13 @@ public class NoteCreateScreen {
             Path targetFile = MainApp.IMAGE_DIR.resolve(fileName);
             Files.copy(selected.toPath(), targetFile);
 
-            int caretPosition = bodyArea.getCaretPosition();
-            String snippet = "![" + selected.getName() + "](" + fileName + ")";
-            bodyArea.insertText(caretPosition, snippet);
-            updatePreview();
+            if (markdownMode) {
+                int caretPosition = bodyArea.getCaretPosition();
+                String snippet = "![" + selected.getName() + "](" + fileName + ")";
+                bodyArea.insertText(caretPosition, snippet);
+            } else {
+                richEditor.insertImage(fileName, selected.getName());
+            }
         } catch (IOException e) {
             showError("画像の保存に失敗しました: " + e.getMessage());
         }
@@ -414,7 +441,7 @@ public class NoteCreateScreen {
             ImageIO.write(image, "png", targetFile.toFile());
             backgroundImageFileName = fileName;
             updateBackgroundImageLabel();
-            updatePreview();
+            applyEditorAppearance();
         } catch (IOException e) {
             showError("背景画像の保存に失敗しました: " + e.getMessage());
         }
@@ -428,29 +455,55 @@ public class NoteCreateScreen {
     private void onClearBackgroundImage() {
         backgroundImageFileName = null;
         updateBackgroundImageLabel();
-        updatePreview();
+        applyEditorAppearance();
     }
 
     private void updateBackgroundImageLabel() {
         backgroundImageLabel.setText(backgroundImageFileName == null ? "（未設定）" : backgroundImageFileName);
     }
 
+    /** 現在の本文（Markdown）。Markdown編集中はテキスト欄、通常はWYSIWYGエディタから得る。 */
+    private String currentMarkdown() {
+        return markdownMode ? bodyArea.getText() : richEditor.getMarkdown();
+    }
+
+    /** 「Markdown編集」の切替。切り替える側へ、いまの本文を引き継ぐ。 */
+    private void onMarkdownModeChanged(boolean markdown) {
+        if (markdown == markdownMode) {
+            return;
+        }
+        if (markdown) {
+            bodyArea.setText(richEditor.getMarkdown());
+        } else {
+            richEditor.setMarkdown(bodyArea.getText());
+        }
+        markdownMode = markdown;
+        bodyArea.setVisible(markdown);
+        bodyArea.setManaged(markdown);
+        richEditor.getNode().setVisible(!markdown);
+        richEditor.getNode().setManaged(!markdown);
+        if (markdown) {
+            bodyArea.requestFocus();
+        } else {
+            richEditor.requestFocus();
+        }
+    }
+
+    /** 本文の背景色・背景画像・文字色の設定を、編集欄の見た目にも反映する。 */
+    private void applyEditorAppearance() {
+        if (richEditor == null || backgroundThemeCombo.getValue() == null || textColorCombo.getValue() == null) {
+            return;
+        }
+        richEditor.setAppearance(NoteFormWidgets.buildBodyStyleCss(
+            backgroundThemeCombo.getValue(), backgroundImageFileName, textColorCombo.getValue()));
+    }
+
     private void updatePreview() {
-        String bodyHtml = new MarkdownRenderer().render(bodyArea.getText());
+        String bodyHtml = new MarkdownRenderer().render(currentMarkdown());
         String bodyAppearance = NoteFormWidgets.buildBodyStyleCss(
             backgroundThemeCombo.getValue(), backgroundImageFileName, textColorCombo.getValue());
         String document = "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"/><style>"
-            + com.mydictionary.desktop.font.FontLibrary.fontFaceCss()
-            + "body{font-family:'" + book.getEffectiveFontFamily() + "', sans-serif; font-size:"
-            + book.getFontSizePt() + "pt; padding:12px; line-height:1.6;"
-            + bodyAppearance + "}"
-            + "table{border-collapse:collapse;} td,th{border:1px solid #999;padding:4px 8px;}"
-            + "blockquote{border-left:4px solid #999;margin:8px 0;padding:4px 12px;color:#555;}"
-            + "pre{background:#f4f4f4;padding:8px;overflow-x:auto;}"
-            + "rt{font-size:0.6em;}"
-            + "img{max-width:100%;display:block;margin:8px 0;}"
-            + "h1,h2,h3,h4,h5,h6{font-weight:bold;margin:0.8em 0 0.3em;}"
-            + com.mydictionary.core.markdown.HeadingStyles.css()
+            + NoteFormWidgets.editorDocumentCss(book, bodyAppearance)
             + "</style>" + com.mydictionary.desktop.KatexAssets.headHtml()
             + "</head><body>" + bodyHtml + "</body></html>";
 
@@ -483,10 +536,11 @@ public class NoteCreateScreen {
         }
 
         List<Long> tagIdsToSave = new ArrayList<>(selectedTagIds);
+        String body = currentMarkdown();
 
         if (existingNote != null) {
             existingNote.setFieldValues(fieldValues);
-            existingNote.setBody(bodyArea.getText());
+            existingNote.setBody(body);
             existingNote.setTagIds(tagIdsToSave);
             existingNote.setBackgroundTheme(backgroundThemeCombo.getValue());
             existingNote.setBackgroundImageFileName(backgroundImageFileName);
@@ -494,7 +548,7 @@ public class NoteCreateScreen {
             noteRepository.update(existingNote);
             navigator.showNote(bookId, existingNote.getId());
         } else {
-            Note newNote = new Note(0, null, bookId, bodyArea.getText(), Instant.now(), Instant.now());
+            Note newNote = new Note(0, null, bookId, body, Instant.now(), Instant.now());
             newNote.setFieldValues(fieldValues);
             newNote.setTagIds(tagIdsToSave);
             newNote.setBackgroundTheme(backgroundThemeCombo.getValue());

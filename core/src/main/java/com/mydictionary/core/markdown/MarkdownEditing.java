@@ -240,48 +240,73 @@ public final class MarkdownEditing {
     private enum Kind { BLANK, CODE, FENCE, DIRECTIVE, TABLE, HR, HEADING, QUOTE, LIST, PLAIN }
 
     /**
-     * 選択範囲（無ければカーソル位置）のブロックの配置を変える。レンダラーの
-     * {@code {: align="center"}}形式の指定行をブロックの直前に挿入/差し替えし、"left"のときは指定行を削除する。
-     * 通常の段落は複数行でひとまとまり、テーブルも全行でひとまとまりとして、その直前に1回だけ指定する。
+     * 選択範囲（無ければカーソル行）の配置を変える。レンダラーの{@code {: align="center"}}形式の指定行を、
+     * 対象の行の直前に挿入/差し替えし、"left"のときは指定行を削除する。
+     * <p>
+     * 通常の文章はレンダラー上は連続する行がひとまとまりの段落になるが、配置は<b>カーソルのある行（選択があれば
+     * 選んだ行）だけ</b>に効かせる。段落の途中の行を対象にしたときは、その行の前後で段落を区切るよう、
+     * 前後の行に元の配置を再指定する指定行を補う（指定行はレンダラーが次のブロックに対して消費する仕様のため）。
+     * 見出し・引用・リスト項目は1行ごとに独立したブロックなので行ごと、テーブルは全行で1ブロックなので
+     * 表全体に1回だけ指定する。
      */
     public static Result setAlignment(String text, int start, int end, String align) {
         int s = clamp(Math.min(start, end), text);
         int e = clamp(Math.max(start, end), text);
         List<int[]> lines = lineRanges(text);
         Kind[] kinds = classify(text, lines);
+        int count = lines.size();
 
         int first = lineIndexOf(lines, s);
         int last = lineIndexOf(lines, e > s ? e - 1 : e);
-        while (first > 0 && isBlockContinuation(kinds[first], kinds[first - 1])) {
+        // テーブルは表全体で1ブロックなので、選択が表にかかっていれば表の端まで広げる。
+        while (first > 0 && kinds[first] == Kind.TABLE && kinds[first - 1] == Kind.TABLE) {
             first--;
         }
-        while (last < lines.size() - 1 && isBlockContinuation(kinds[last + 1], kinds[last])) {
+        while (last < count - 1 && kinds[last] == Kind.TABLE && kinds[last + 1] == Kind.TABLE) {
             last++;
         }
 
-        String directive = "{: align=\"" + align + "\"}";
-        boolean remove = "left".equals(align);
         List<Edit> edits = new ArrayList<>();
-        for (int i = first; i <= last; i++) {
+        int i = first;
+        while (i <= last) {
             Kind kind = kinds[i];
             if (kind != Kind.PLAIN && kind != Kind.TABLE && kind != Kind.HEADING
                 && kind != Kind.QUOTE && kind != Kind.LIST) {
+                i++;
                 continue;
             }
-            if (i > first && isBlockContinuation(kind, kinds[i - 1])) {
-                continue;
-            }
-            int lineStart = lines.get(i)[0];
-            if (i > 0 && kinds[i - 1] == Kind.DIRECTIVE) {
-                int dirStart = lines.get(i - 1)[0];
-                if (remove) {
-                    edits.add(new Edit(dirStart, lineStart, ""));
-                } else {
-                    edits.add(new Edit(dirStart, lines.get(i - 1)[1], directive));
+            // 選択範囲内で続く通常行（または表の行）は、1つのブロックとしてまとめて扱う。
+            int runEnd = i;
+            if (kind == Kind.PLAIN || kind == Kind.TABLE) {
+                while (runEnd + 1 <= last && kinds[runEnd + 1] == kind) {
+                    runEnd++;
                 }
-            } else if (!remove) {
-                edits.add(new Edit(lineStart, lineStart, directive + "\n"));
             }
+
+            String current = effectiveAlign(text, lines, kinds, i);
+            boolean prevIsDirective = i > 0 && kinds[i - 1] == Kind.DIRECTIVE;
+            int lineStart = lines.get(i)[0];
+            if (prevIsDirective) {
+                int dirStart = lines.get(i - 1)[0];
+                edits.add("left".equals(align)
+                    ? new Edit(dirStart, lineStart, "")
+                    : new Edit(dirStart, lines.get(i - 1)[1], directiveFor(align)));
+            } else if (kind == Kind.PLAIN && isInsideParagraph(kinds, i)) {
+                // 段落の途中の行: 今の配置と違うときだけ、この行の前で配置を切り替える。
+                if (!current.equals(align)) {
+                    edits.add(new Edit(lineStart, lineStart, directiveFor(align) + "\n"));
+                }
+            } else if (!"left".equals(align)) {
+                edits.add(new Edit(lineStart, lineStart, directiveFor(align) + "\n"));
+            }
+
+            // 段落の続き（選択範囲の外の通常行）は、元の配置のままにしておく。
+            if (kind == Kind.PLAIN && runEnd + 1 < count && kinds[runEnd + 1] == Kind.PLAIN
+                && !current.equals(align)) {
+                int nextStart = lines.get(runEnd + 1)[0];
+                edits.add(new Edit(nextStart, nextStart, directiveFor(current) + "\n"));
+            }
+            i = runEnd + 1;
         }
         if (edits.isEmpty()) {
             return new Result(text, s, e);
@@ -289,10 +314,31 @@ public final class MarkdownEditing {
         return applyEdits(text, edits, s, e);
     }
 
-    /** 同じ段落（通常行どうし）・同じテーブル（テーブル行どうし）の続きの行か。 */
-    private static boolean isBlockContinuation(Kind current, Kind previous) {
-        return (current == Kind.PLAIN && previous == Kind.PLAIN)
-            || (current == Kind.TABLE && previous == Kind.TABLE);
+    private static String directiveFor(String align) {
+        return "{: align=\"" + align + "\"}";
+    }
+
+    /** 行が、直前も通常行である（＝段落の2行目以降）か。 */
+    private static boolean isInsideParagraph(Kind[] kinds, int index) {
+        return index > 0 && kinds[index - 1] == Kind.PLAIN;
+    }
+
+    /**
+     * 通常行の「いま効いている配置」。同じ段落の先頭行の直前にある指定行（無ければ"left"）の値。
+     * 通常行以外の行は、直前が指定行ならその値、無ければ"left"。
+     */
+    private static String effectiveAlign(String text, List<int[]> lines, Kind[] kinds, int index) {
+        int head = index;
+        while (head > 0 && kinds[index] == Kind.PLAIN && kinds[head - 1] == Kind.PLAIN) {
+            head--;
+        }
+        if (head > 0 && kinds[head - 1] == Kind.DIRECTIVE) {
+            Matcher m = ALIGN_DIRECTIVE.matcher(lineContent(text, lines.get(head - 1)).trim());
+            if (m.matches()) {
+                return m.group(1).toLowerCase();
+            }
+        }
+        return "left";
     }
 
     /** 選択範囲（無ければカーソル行）の各行頭に「- 」を付ける（全行が既に付いていれば外す）。 */

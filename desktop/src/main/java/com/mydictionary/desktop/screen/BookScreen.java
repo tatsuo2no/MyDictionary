@@ -79,6 +79,10 @@ public class BookScreen {
 
         view.setStyle("-fx-font-family: '" + book.getEffectiveFontFamily() + "';");
 
+        // タグ列を出すかどうかを表の構築時に判定するため、タグ自体はここで先に読み込んでおく。
+        tagById = tagRepository.findByBookId(bookId).stream()
+            .collect(Collectors.toMap(Tag::getId, tag -> tag));
+
         view.setTop(buildHeader());
         view.setCenter(buildTable());
 
@@ -194,7 +198,10 @@ public class BookScreen {
                 setGraphic(box);
             }
         });
-        tableColumns.add(tagsCol);
+        // このブックにタグが1つも作られていなければ、右端のタグ列は出さない。
+        if (!tagById.isEmpty()) {
+            tableColumns.add(tagsCol);
+        }
 
         table.getColumns().addAll(tableColumns);
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_ALL_COLUMNS);
