@@ -219,18 +219,27 @@ public final class SyncManager {
             remoteFolderId = remoteFolder.getId();
         }
 
-        FileList remoteFiles = drive.files().list()
-            .setQ("'" + remoteFolderId + "' in parents and trashed = false")
-            .setFields("files(id, name)")
-            .setSpaces("drive")
-            .setCorpora("allDrives")
-            .setSupportsAllDrives(true)
-            .setIncludeItemsFromAllDrives(true)
-            .execute();
+        // files.list()は1回で最大100件（既定）しか返さないので、ページが尽きるまで繰り返し取得する。
+        // 1回しか取らないと、101件目以降のファイルが「相手に無い」と誤判定され、画像が端末に届かない・
+        // 同じ画像が重複してアップロードされる（Googleドライブ側に「名前 (1).png」が増える）原因になる。
         Map<String, String> remoteIdByName = new HashMap<>();
-        for (com.google.api.services.drive.model.File file : remoteFiles.getFiles()) {
-            remoteIdByName.put(file.getName(), file.getId());
-        }
+        String pageToken = null;
+        do {
+            FileList remoteFiles = drive.files().list()
+                .setQ("'" + remoteFolderId + "' in parents and trashed = false")
+                .setFields("nextPageToken, files(id, name)")
+                .setPageSize(1000)
+                .setPageToken(pageToken)
+                .setSpaces("drive")
+                .setCorpora("allDrives")
+                .setSupportsAllDrives(true)
+                .setIncludeItemsFromAllDrives(true)
+                .execute();
+            for (com.google.api.services.drive.model.File file : remoteFiles.getFiles()) {
+                remoteIdByName.put(file.getName(), file.getId());
+            }
+            pageToken = remoteFiles.getNextPageToken();
+        } while (pageToken != null);
 
         File[] localFiles = localDir.listFiles();
         if (localFiles != null) {
