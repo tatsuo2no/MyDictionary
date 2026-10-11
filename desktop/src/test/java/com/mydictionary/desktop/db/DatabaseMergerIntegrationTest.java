@@ -52,6 +52,7 @@ class DatabaseMergerIntegrationTest {
                 Instant.now(), Instant.now()));
             Book book = booksA.insert(new Book(0, null, shelf.getId(), "旅行メモ", BookTheme.GREEN, BookFont.MEIRYO_UI,
                 BookCover.ofPattern(BookCover.Pattern.WAVES), Instant.now(), Instant.now()));
+            addReadingAndEnglish(columnsA, book.getId());
             Tag country = tagsA.insert(new Tag(0, null, book.getId(), "国", null, Instant.now()));
             Tag japan = tagsA.insert(new Tag(0, null, book.getId(), "日本", country.getId(), Instant.now()));
 
@@ -123,6 +124,7 @@ class DatabaseMergerIntegrationTest {
                 BookCover.ofPattern(BookCover.Pattern.STRIPES), Instant.now(), Instant.now()));
             Book bookA = booksA.insert(new Book(0, null, shelfA.getId(), "共有ブック", BookTheme.WHITE, BookFont.MEIRYO_UI,
                 BookCover.ofPattern(BookCover.Pattern.STRIPES), Instant.now(), Instant.now()));
+            addReadingAndEnglish(columnsA, bookA.getId());
             List<NoteColumn> columnsInA = columnsA.findByBookId(bookA.getId());
             Note noteA = new Note(0, null, bookA.getId(), "古い本文",
                 Instant.now(), Instant.now().minus(1, ChronoUnit.HOURS));
@@ -180,6 +182,7 @@ class DatabaseMergerIntegrationTest {
                 BookCover.ofPattern(BookCover.Pattern.STRIPES), Instant.now(), Instant.now()));
             Book bookA = booksA.insert(new Book(0, null, shelf1A.getId(), "移動するブック", BookTheme.GREEN,
                 BookFont.MEIRYO_UI, BookCover.ofPattern(BookCover.Pattern.PLAIN), Instant.now(), Instant.now()));
+            addReadingAndEnglish(columnsA, bookA.getId());
 
             DatabaseMerger.merge(shelvesA, booksA, tagsA, columnsA, notesA,
                 shelvesB, booksB, tagsB, columnsB, notesB);
@@ -222,6 +225,7 @@ class DatabaseMergerIntegrationTest {
                 BookCover.ofPattern(BookCover.Pattern.PLAIN), Instant.now(), Instant.now()));
             Book bookA = booksA.insert(new Book(0, null, shelf.getId(), "ブック", BookTheme.GREEN,
                 BookFont.MEIRYO_UI, BookCover.ofPattern(BookCover.Pattern.PLAIN), Instant.now(), Instant.now()));
+            addReadingAndEnglish(columnsA, bookA.getId());
             List<NoteColumn> original = columnsA.findByBookId(bookA.getId());
             Note note = new Note(0, null, bookA.getId(), "本文", Instant.now(), Instant.now());
             note.setFieldValues(Map.of(original.get(0).getId(), "犬", original.get(1).getId(), "いぬ"));
@@ -289,6 +293,7 @@ class DatabaseMergerIntegrationTest {
                 BookCover.ofPattern(BookCover.Pattern.PLAIN), Instant.now(), Instant.now()));
             Book bookA = booksA.insert(new Book(0, null, shelf.getId(), "ブック", BookTheme.GREEN,
                 BookFont.MEIRYO_UI, BookCover.ofPattern(BookCover.Pattern.PLAIN), Instant.now(), Instant.now()));
+            addReadingAndEnglish(columnsA, bookA.getId());
             Note note = new Note(0, null, bookA.getId(), "本文", Instant.now(), Instant.now());
             note.setFieldValues(Map.of(columnsA.findByBookId(bookA.getId()).get(0).getId(), "犬"));
             notesA.insert(note);
@@ -335,6 +340,7 @@ class DatabaseMergerIntegrationTest {
                 BookCover.ofPattern(BookCover.Pattern.PLAIN), Instant.now(), Instant.now());
             bookA.setCustomFontFamily("BIZ UDPGothic");
             bookA = booksA.insert(bookA);
+            addReadingAndEnglish(columnsA, bookA.getId());
 
             DatabaseMerger.merge(shelvesA, booksA, tagsA, columnsA, notesA,
                 shelvesB, booksB, tagsB, columnsB, notesB);
@@ -367,6 +373,7 @@ class DatabaseMergerIntegrationTest {
                 BookCover.ofPattern(BookCover.Pattern.PLAIN), Instant.now(), Instant.now()));
             Book bookA = booksA.insert(new Book(0, null, shelf.getId(), "ブック", BookTheme.GREEN,
                 BookFont.MEIRYO_UI, BookCover.ofPattern(BookCover.Pattern.PLAIN), Instant.now(), Instant.now()));
+            addReadingAndEnglish(columnsA, bookA.getId());
             DatabaseMerger.merge(shelvesA, booksA, tagsA, columnsA, notesA,
                 shelvesB, booksB, tagsB, columnsB, notesB);
 
@@ -384,4 +391,11 @@ class DatabaseMergerIntegrationTest {
             assertEquals(1, columnsInB.stream().filter(NoteColumn::isPrimaryKey).count());
         }
     }
+
+    /** 新規ブックは「項目名」だけで作られるので、複数カラムが要るテスト用に「読み」「英訳」を足す。 */
+    private static void addReadingAndEnglish(SqliteNoteColumnRepository columns, long bookId) {
+        columns.insert(new NoteColumn(0, null, bookId, "読み", true, 1, Instant.now()));
+        columns.insert(new NoteColumn(0, null, bookId, "英訳", false, 2, Instant.now()));
+    }
 }
+

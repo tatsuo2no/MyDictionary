@@ -167,8 +167,6 @@ public class SqliteNoteColumnRepository implements NoteColumnRepository {
         NoteColumn primary = new NoteColumn(0, null, bookId, "項目名", true, 0, Instant.now());
         primary.setPrimaryKey(true);
         insert(primary);
-        insert(new NoteColumn(0, null, bookId, "読み", true, 1, Instant.now()));
-        insert(new NoteColumn(0, null, bookId, "英訳", false, 2, Instant.now()));
     }
 
     @Override

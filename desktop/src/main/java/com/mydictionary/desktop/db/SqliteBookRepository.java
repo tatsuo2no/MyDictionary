@@ -110,8 +110,8 @@ public class SqliteBookRepository implements BookRepository {
             try (ResultSet keys = ps.getGeneratedKeys()) {
                 if (keys.next()) {
                     long newBookId = keys.getLong(1);
-                    // ノートのカラム（項目名・読み・英訳に相当）は自由設定制のため、
-                    // ブック作成時に既定の3カラムを用意しておく（ユーザーは後から自由に編集できる）。
+                    // ノートのカラムは自由設定制のため、ブック作成時は主キーの「項目名」だけを用意する
+                    // （読み・英訳などは、必要なブックでユーザーが後から追加する）。
                     new SqliteNoteColumnRepository(database).seedDefaultColumns(newBookId);
                     return findById(newBookId).orElseThrow();
                 }

@@ -263,7 +263,7 @@ public class DictionaryDbHelper extends SQLiteOpenHelper {
      * まだ1つもカラムが定義されていないブック（＝この機能追加より前から存在するブック）に、
      * 既定の3カラム（項目名=必須, 読み=必須, 英訳=任意）を補完し、既存ノートのtitle/reading/
      * english_translationの値をnote_field_valuesへ複製する。新規に作るブックはこのメソッドの
-     * 対象にならないが、AndroidBookRepository.insert()が同じ既定カラムを作成する。
+     * 対象にならない（AndroidBookRepository.insert()は主キーの「項目名」だけを作る）。
      */
     private void migrateNoteColumns(SQLiteDatabase db) {
         List<Long> bookIdsWithoutColumns = new ArrayList<>();

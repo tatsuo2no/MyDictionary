@@ -275,7 +275,7 @@ public class SqliteDatabase implements AutoCloseable {
      * まだ1つもカラムが定義されていないブック（＝この機能追加より前から存在するブック）に、
      * 既定の3カラム（項目名=必須, 読み=必須, 英訳=任意）を補完し、既存ノートのtitle/reading/
      * english_translationの値をnote_field_valuesへ複製する。新規に作るブックはこのメソッドの
-     * 対象にならないが、SqliteBookRepository.insert()が同じ既定カラムを作成する。
+     * 対象にならない（SqliteBookRepository.insert()は主キーの「項目名」だけを作る）。
      */
     private void migrateNoteColumns() {
         List<Long> bookIdsWithoutColumns = new ArrayList<>();

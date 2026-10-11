@@ -30,8 +30,9 @@ public interface NoteColumnRepository {
     void setPrimary(long bookId, long columnId);
 
     /**
-     * ブック作成時に呼び、既定の3カラム（項目名=必須・主キー, 読み=必須, 英訳=任意）を作成する。
-     * 新規ブック・および列未移行の既存ブックの両方から使う共通の初期化処理。
+     * ブック作成時に呼び、主キーとなる「項目名」カラム（必須）だけを作成する。「読み」「英訳」などは
+     * 任意で、ユーザーが必要なブックにだけ後から追加する（既定で作ると、片方の端末で削除しても
+     * 同期で他方の端末から復活してしまうため）。
      */
     void seedDefaultColumns(long bookId);
 

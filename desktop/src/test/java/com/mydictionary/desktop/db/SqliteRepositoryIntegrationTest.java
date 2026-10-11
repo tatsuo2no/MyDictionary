@@ -40,6 +40,7 @@ class SqliteRepositoryIntegrationTest {
             SqliteBookRepository bookRepository = new SqliteBookRepository(database);
             Book book = bookRepository.insert(new Book(0, null, insertShelf(database), "テストブック", BookTheme.GREEN,
                 BookFont.MEIRYO_UI, BookCover.ofPattern(BookCover.Pattern.CHECKERS), Instant.now(), Instant.now()));
+            addReadingAndEnglish(database, book.getId());
             assertTrue(book.getId() > 0);
 
             SqliteTagRepository tagRepository = new SqliteTagRepository(database);
@@ -80,6 +81,7 @@ class SqliteRepositoryIntegrationTest {
             SqliteBookRepository bookRepository = new SqliteBookRepository(database);
             Book book = bookRepository.insert(new Book(0, null, insertShelf(database), "テストブック", BookTheme.GREEN,
                 BookFont.MEIRYO_UI, BookCover.ofPattern(BookCover.Pattern.CHECKERS), Instant.now(), Instant.now()));
+            addReadingAndEnglish(database, book.getId());
 
             SqliteTagRepository tagRepository = new SqliteTagRepository(database);
             Tag parentTag = tagRepository.insert(new Tag(0, null, book.getId(), "分類", null, Instant.now()));
@@ -137,6 +139,7 @@ class SqliteRepositoryIntegrationTest {
             SqliteBookRepository bookRepository = new SqliteBookRepository(database);
             Book book = bookRepository.insert(new Book(0, null, insertShelf(database), "テストブック", BookTheme.GREEN,
                 BookFont.MEIRYO_UI, BookCover.ofPattern(BookCover.Pattern.CHECKERS), Instant.now(), Instant.now()));
+            addReadingAndEnglish(database, book.getId());
 
             SqliteNoteRepository noteRepository = new SqliteNoteRepository(database);
             Note note = new Note(0, null, book.getId(), "本文", Instant.now(), Instant.now());
@@ -162,6 +165,7 @@ class SqliteRepositoryIntegrationTest {
             SqliteBookRepository bookRepository = new SqliteBookRepository(database);
             Book book = bookRepository.insert(new Book(0, null, insertShelf(database), "テストブック", BookTheme.GREEN,
                 BookFont.MEIRYO_UI, BookCover.ofPattern(BookCover.Pattern.CHECKERS), Instant.now(), Instant.now()));
+            addReadingAndEnglish(database, book.getId());
 
             try (var statement = database.getConnection().createStatement()) {
                 statement.executeUpdate(
@@ -188,10 +192,13 @@ class SqliteRepositoryIntegrationTest {
 
             Book a = bookRepository.insert(new Book(0, null, shelfId, "A", BookTheme.GREEN, BookFont.MEIRYO_UI,
                 BookCover.ofPattern(BookCover.Pattern.PLAIN), Instant.now(), Instant.now()));
+            addReadingAndEnglish(database, a.getId());
             Book b = bookRepository.insert(new Book(0, null, shelfId, "B", BookTheme.GREEN, BookFont.MEIRYO_UI,
                 BookCover.ofPattern(BookCover.Pattern.PLAIN), Instant.now(), Instant.now()));
+            addReadingAndEnglish(database, b.getId());
             Book c = bookRepository.insert(new Book(0, null, shelfId, "C", BookTheme.GREEN, BookFont.MEIRYO_UI,
                 BookCover.ofPattern(BookCover.Pattern.PLAIN), Instant.now(), Instant.now()));
+            addReadingAndEnglish(database, c.getId());
 
             // 挿入順どおりに並んでいる
             assertEquals(List.of("A", "B", "C"),
@@ -217,13 +224,14 @@ class SqliteRepositoryIntegrationTest {
             SqliteBookRepository bookRepository = new SqliteBookRepository(database);
             Book saved = bookRepository.insert(new Book(0, null, insertShelf(database), "ハニカム", BookTheme.YELLOW,
                 BookFont.MEIRYO_UI, BookCover.ofPattern(BookCover.Pattern.HONEYCOMB), Instant.now(), Instant.now()));
+            addReadingAndEnglish(database, saved.getId());
             Book reloaded = bookRepository.findById(saved.getId()).orElseThrow();
             assertEquals(BookCover.Pattern.HONEYCOMB, reloaded.getCover().getPattern());
         }
     }
 
     @Test
-    void seedsDefaultThreeColumnsWhenCreatingANewBook(@TempDir Path tempDir) {
+    void seedsOnlyThePrimaryColumnWhenCreatingANewBook(@TempDir Path tempDir) {
         try (SqliteDatabase database = new SqliteDatabase(tempDir.resolve("test.db"))) {
             database.initSchema();
             SqliteBookRepository bookRepository = new SqliteBookRepository(database);
@@ -231,13 +239,10 @@ class SqliteRepositoryIntegrationTest {
                 BookFont.MEIRYO_UI, BookCover.ofPattern(BookCover.Pattern.PLAIN), Instant.now(), Instant.now()));
 
             List<NoteColumn> columns = new SqliteNoteColumnRepository(database).findByBookId(book.getId());
-            assertEquals(3, columns.size());
+            assertEquals(1, columns.size());
             assertEquals("項目名", columns.get(0).getName());
             assertTrue(columns.get(0).isRequired());
-            assertEquals("読み", columns.get(1).getName());
-            assertTrue(columns.get(1).isRequired());
-            assertEquals("英訳", columns.get(2).getName());
-            assertFalse(columns.get(2).isRequired());
+            assertTrue(columns.get(0).isPrimaryKey());
         }
     }
 
@@ -248,6 +253,7 @@ class SqliteRepositoryIntegrationTest {
             SqliteBookRepository bookRepository = new SqliteBookRepository(database);
             Book book = bookRepository.insert(new Book(0, null, insertShelf(database), "ブック", BookTheme.GREEN,
                 BookFont.MEIRYO_UI, BookCover.ofPattern(BookCover.Pattern.PLAIN), Instant.now(), Instant.now()));
+            addReadingAndEnglish(database, book.getId());
             SqliteNoteColumnRepository columnRepository = new SqliteNoteColumnRepository(database);
 
             NoteColumn added = columnRepository.insert(new NoteColumn(0, null, book.getId(), "備考", false, 3, null));
@@ -380,6 +386,7 @@ class SqliteRepositoryIntegrationTest {
 
             Book book = bookRepository.insert(new Book(0, null, shelfA.getId(), "移動するブック", BookTheme.GREEN,
                 BookFont.MEIRYO_UI, BookCover.ofPattern(BookCover.Pattern.PLAIN), Instant.now(), Instant.now()));
+            addReadingAndEnglish(database, book.getId());
 
             assertEquals(1, bookRepository.findByShelfId(shelfA.getId()).size());
             assertEquals(0, bookRepository.findByShelfId(shelfB.getId()).size());
@@ -394,9 +401,18 @@ class SqliteRepositoryIntegrationTest {
     }
 
     private static Book insertBook(SqliteDatabase database) {
-        return new SqliteBookRepository(database).insert(new Book(0, null, insertShelf(database), "主キー確認",
+        Book book = new SqliteBookRepository(database).insert(new Book(0, null, insertShelf(database), "主キー確認",
             BookTheme.GREEN, BookFont.MEIRYO_UI, BookCover.ofPattern(BookCover.Pattern.PLAIN),
             Instant.now(), Instant.now()));
+        addReadingAndEnglish(database, book.getId());
+        return book;
+    }
+
+    /** 新規ブックは「項目名」だけで作られるので、複数カラムが要るテスト用に「読み」「英訳」を足す。 */
+    private static void addReadingAndEnglish(SqliteDatabase database, long bookId) {
+        SqliteNoteColumnRepository columns = new SqliteNoteColumnRepository(database);
+        columns.insert(new NoteColumn(0, null, bookId, "読み", true, 1, Instant.now()));
+        columns.insert(new NoteColumn(0, null, bookId, "英訳", false, 2, Instant.now()));
     }
 
     @Test

@@ -81,6 +81,8 @@ public class AndroidBookRepository implements BookRepository {
         values.put("created_at", now);
         values.put("updated_at", now);
         long id = db.insertOrThrow("books", null, values);
+        // デスクトップ版と同じく、主キーの「項目名」だけを既定で用意する（読み・英訳などは任意で追加）。
+        new AndroidNoteColumnRepository(dbHelper).seedDefaultColumns(id);
         return findById(id).orElseThrow(() -> new IllegalStateException("ブックの作成に失敗しました"));
     }
 

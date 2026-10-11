@@ -39,12 +39,14 @@ public final class SampleDataInitializer {
             BookTheme.LIGHT_BLUE, BookFont.MEIRYO_UI,
             BookCover.ofPattern(BookCover.Pattern.STRIPES), Instant.now(), Instant.now()));
 
-        // bookRepository.insert()が既定の3カラム（項目名=必須, 読み=必須, 英訳=任意）を
-        // 自動的に用意しているので、それを取得してサンプルノートの値を割り当てる。
-        List<NoteColumn> columns = new AndroidNoteColumnRepository(dbHelper).findByBookId(sampleBook.getId());
-        long titleColumnId = columns.get(0).getId();
-        long readingColumnId = columns.get(1).getId();
-        long englishColumnId = columns.get(2).getId();
+        // bookRepository.insert()は主キーの「項目名」だけを用意するので、サンプルでは
+        // 「読み」（必須）と「英訳」（任意）を追加で作り、サンプルノートの値を割り当てる。
+        AndroidNoteColumnRepository columnRepository = new AndroidNoteColumnRepository(dbHelper);
+        long titleColumnId = columnRepository.findByBookId(sampleBook.getId()).get(0).getId();
+        long readingColumnId = columnRepository.insert(
+            new NoteColumn(0, null, sampleBook.getId(), "読み", true, 1, Instant.now())).getId();
+        long englishColumnId = columnRepository.insert(
+            new NoteColumn(0, null, sampleBook.getId(), "英訳", false, 2, Instant.now())).getId();
 
         AndroidTagRepository tagRepository = new AndroidTagRepository(dbHelper);
         Tag animal = tagRepository.insert(new Tag(0, null, sampleBook.getId(), "動物", null, Instant.now()));
