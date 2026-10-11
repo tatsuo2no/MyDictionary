@@ -79,7 +79,7 @@ public class NoteColumnScreen {
         HBox.setHgrow(title, Priority.ALWAYS);
 
         Label hint = new Label(
-            "「主キー」に設定した項目は、ノート一覧の見出し（Android版では太字の大文字）や名前順の並び替えの"
+            "「主キー」に設定した項目は、ノート一覧の見出し（Android版では太字）や名前順の並び替えの"
                 + "既定に使われます。主キーは常に必須で、削除できません。"
                 + "それ以外の項目は必須・任意を切り替えたり、削除したりできます。");
         hint.setWrapText(true);

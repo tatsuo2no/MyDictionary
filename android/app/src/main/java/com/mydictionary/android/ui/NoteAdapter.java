@@ -16,7 +16,6 @@ import com.mydictionary.core.model.NoteColumns;
 import com.mydictionary.core.model.Tag;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -61,8 +60,9 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.NoteViewHolder
     @Override
     public void onBindViewHolder(@NonNull NoteViewHolder holder, int position) {
         Note note = notes.get(position);
-        // 主キーの項目は「項目名: 値」の形ではなく、太字（レイアウト側で指定）の大文字で見出しとして表示する。
-        holder.titleView.setText(NoteColumns.primaryValue(note, columns).toUpperCase(Locale.ROOT));
+        // 主キーの項目は「項目名: 値」の形ではなく、太字（レイアウト側で指定）の見出しとして表示する。
+        // 入力した大文字・小文字はそのまま表示する。
+        holder.titleView.setText(NoteColumns.primaryValue(note, columns));
 
         holder.otherFieldsContainer.removeAllViews();
         for (NoteColumn column : columns) {
