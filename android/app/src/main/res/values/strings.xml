@@ -110,9 +110,9 @@
     <string name="note_create_title">ノートを作成</string>
     <string name="note_edit_title">ノートを編集</string>
     <string name="optional_field_label_format">%1$s（オプション）</string>
-    <string name="label_note_background_theme">本文の背景色</string>
+    <string name="label_note_background_theme_short">背景色</string>
+    <string name="label_note_text_color_short">文字色</string>
     <string name="label_note_background_image">本文の背景画像（オプション）</string>
-    <string name="label_note_text_color">本文の標準文字色</string>
     <string name="action_clear_image">画像をクリア</string>
     <string name="background_image_not_set">（未設定）</string>
     <string name="error_background_image_save_failed">背景画像の保存に失敗しました: %1$s</string>

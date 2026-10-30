@@ -3,6 +3,7 @@ package com.mydictionary.android.ui;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.view.Gravity;
 import android.view.View;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
@@ -177,23 +178,33 @@ public class NoteCreateActivity extends AppCompatActivity {
         updatePreview();
     }
 
-    /** ブックごとに自由設定できるノート項目（カラム）1つにつき、ラベル+入力欄を1組動的に生成する。 */
+    /**
+     * ブックごとに自由設定できるノート項目（カラム）1つにつき、ラベル+入力欄を1行に並べて動的に生成する
+     * （編集欄を広く取るため縦に積まない。ラベル列の幅はタグ欄と同じ）。
+     */
     private void buildColumnFields() {
         LinearLayout container = findViewById(R.id.columnFieldsContainer);
-        int density = (int) (getResources().getDisplayMetrics().density);
+        float density = getResources().getDisplayMetrics().density;
         for (NoteColumn column : columns) {
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setPadding(0, Math.round(density * 8), 0, 0);
+
             TextView label = new TextView(this);
             label.setText(column.isRequired() ? column.getName() : getString(R.string.optional_field_label_format,
                 column.getName()));
-            label.setPadding(0, density * 8, 0, 0);
-            container.addView(label);
+            label.setTextSize(13);
+            row.addView(label, new LinearLayout.LayoutParams(Math.round(density * 120),
+                LinearLayout.LayoutParams.WRAP_CONTENT));
 
             EditText field = new EditText(this);
             if (existingNote != null) {
                 field.setText(existingNote.getFieldValue(column.getId()));
             }
             columnFields.put(column.getId(), field);
-            container.addView(field);
+            row.addView(field, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+            container.addView(row);
         }
     }
 
