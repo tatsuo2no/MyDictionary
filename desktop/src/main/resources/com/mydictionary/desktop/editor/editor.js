@@ -683,16 +683,46 @@
     return top;
   }
 
+  /**
+   * 仕切り線・表を挿入する位置の基準になるブロック。カーソルのあるブロックを基本とし、リスト項目なら
+   * リスト全体、表のセルなら表全体の後ろにする（途中に差し込むと壊れるため）。貼り付け等で外側に
+   * ラッパー(div)が付いていても、そこまでは遡らない（遡るとラッパーの末尾＝貼り付けた文章の最後に入ってしまう）。
+   */
+  function insertionAnchor(b) {
+    var anchor = b;
+    var table = anchor.closest ? anchor.closest('table') : null;
+    if (table && ED.contains(table)) {
+      anchor = table;
+    }
+    while (anchor.parentNode && anchor.parentNode !== ED
+      && (anchor.parentNode.tagName === 'UL' || anchor.parentNode.tagName === 'OL'
+        || anchor.parentNode.tagName === 'LI' || anchor.parentNode.tagName === 'BLOCKQUOTE')) {
+      anchor = anchor.parentNode;
+    }
+    return anchor;
+  }
+
   function insertBlockAfterCaret(el) {
     ensureBlocks();
     var r = activate();
     var b = blockOf(r.endContainer) || ED.lastChild;
-    var top = topLevel(b) || ED.lastChild;
-    ED.insertBefore(el, top ? top.nextSibling : null);
+    if (b && isPlain(b) && b.contains(r.endContainer)) {
+      // 貼り付けた複数行の文章など、改行(br)で区切った行が並ぶ段落では、カーソルのある行の直後で段落を分け、
+      // その間に挿入する（段落全体の末尾に入れてしまうと、カーソルの位置と違う場所になる）。
+      var line = lineIndexAt(b, r.endContainer, r.endOffset);
+      var parts = splitBlock(b, 0, line, false);
+      b = parts[parts.length - 1];
+    }
+    var anchor = b ? insertionAnchor(b) : null;
+    if (anchor && anchor.parentNode) {
+      anchor.parentNode.insertBefore(el, anchor.nextSibling);
+    } else {
+      ED.appendChild(el);
+    }
     var next = el.nextSibling;
     if (!next || !isBlockEl(next) || next.tagName === 'HR' || next.tagName === 'TABLE') {
       next = emptyBlock();
-      ED.insertBefore(next, el.nextSibling);
+      el.parentNode.insertBefore(next, el.nextSibling);
     }
     return next;
   }
@@ -721,9 +751,30 @@
 
   // ---------------------------------------------------------------- インライン書式
 
+  /**
+   * コードブロック・インラインコードの中では、書式（太字・色・サイズ等）をMarkdownで表せない
+   * （中の記号がそのまま文字として扱われる）ので、書式コマンドで付いてしまったものを取り除く。
+   */
+  function stripFormattingInCode() {
+    each(ED.querySelectorAll('pre *, code *'), function (el) {
+      if (el.tagName === 'BR' || el.tagName === 'CODE' || !el.parentNode) {
+        return;
+      }
+      var parent = el.parentNode;
+      while (el.firstChild) {
+        parent.insertBefore(el.firstChild, el);
+      }
+      parent.removeChild(el);
+    });
+    each(ED.querySelectorAll('pre[style], code[style]'), function (el) {
+      el.removeAttribute('style');
+    });
+  }
+
   function cmd(name) {
     activate();
     document.execCommand(name, false, null);
+    stripFormattingInCode();
     markDirty();
   }
 
@@ -793,6 +844,7 @@
     activate();
     if (!value) {
       clearStyle(prop);
+      stripFormattingInCode();
       markDirty();
       return;
     }
@@ -812,11 +864,16 @@
     } finally {
       document.execCommand('styleWithCSS', false, false);
     }
+    stripFormattingInCode();
     markDirty();
   }
 
+  /** ルビ用に選択範囲を覚えておく（ふりがな入力のダイアログでフォーカスが移っても、同じ範囲に付けられるように）。 */
+  var rubyRange = null;
+
   function selectionText() {
     var r = currentRange() || saved;
+    rubyRange = r && !r.collapsed ? r.cloneRange() : null;
     return r ? r.toString() : '';
   }
 
@@ -824,8 +881,37 @@
     return t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
+  /** ルビを付ける範囲を、開始位置のある1行（brで区切った行）の中に収める。 */
+  function clampToLine(r) {
+    var block = blockOf(r.startContainer);
+    var c = r.cloneRange();
+    if (block && !block.contains(r.endContainer)) {
+      c.setEnd(block, block.childNodes.length);
+    }
+    // 表のセルをまたぐ範囲は、開始位置のあるセルの中に収める（表の構造を壊さないため）。
+    var startEl = isEl(r.startContainer) ? r.startContainer : r.startContainer.parentNode;
+    var cell = startEl && startEl.closest ? startEl.closest('td,th') : null;
+    if (cell && !cell.contains(r.endContainer)) {
+      c.setEnd(cell, cell.childNodes.length);
+    }
+    var brs = (block || ED).querySelectorAll('br');
+    for (var i = 0; i < brs.length; i++) {
+      var br = brs[i];
+      if (c.comparePoint(br, 0) === 0 && !(br.parentNode === c.startContainer && c.startOffset > indexOf(br))) {
+        // 範囲の始まりより後ろで最初のbrの手前までに縮める。
+        var before = document.createRange();
+        before.setStart(c.startContainer, c.startOffset);
+        before.setEndBefore(br);
+        return before;
+      }
+    }
+    return c;
+  }
+
   function applyRuby(reading) {
-    var r = activate();
+    var r = rubyRange && ED.contains(rubyRange.startContainer) && ED.contains(rubyRange.endContainer)
+      ? rubyRange : activate();
+    rubyRange = null;
     var rubies = [];
     var n = r.startContainer;
     while (n && n !== ED) {
@@ -859,17 +945,29 @@
       markDirty();
       return;
     }
-    var text = r.toString();
-    if (!text || !reading) {
+    if (r.collapsed || !reading) {
+      return;
+    }
+    var startEl = isEl(r.startContainer) ? r.startContainer : r.startContainer.parentNode;
+    if (startEl && startEl.closest && startEl.closest('pre,code')) {
+      // コードの中の文字には、ふりがなを付けられない（記号がそのまま文字として扱われるため）。
+      return;
+    }
+    setRange(r);
+    var line = clampToLine(r);
+    var frag = line.extractContents();
+    var hasBreakOrBlock = !!(frag.querySelector && frag.querySelector('br,p,div,li,ul,ol,h1,h2,h3,h4,h5,h6,blockquote,pre,table,hr'));
+    if (!frag.textContent.replace(/\s/g, '') || hasBreakOrBlock) {
+      // ふりがなを付けられる文字が無い、または1行に収まらない形は、取り出した内容を元へ戻して何もしない。
+      line.insertNode(frag);
       return;
     }
     var ruby = newEl('ruby');
-    ruby.appendChild(document.createTextNode(text));
+    ruby.appendChild(frag);
     var rt = newEl('rt');
     rt.textContent = reading;
     ruby.appendChild(rt);
-    r.deleteContents();
-    r.insertNode(ruby);
+    line.insertNode(ruby);
     selectNodeContents(ruby);
     markDirty();
   }

@@ -48,7 +48,7 @@ public final class HtmlToMarkdown {
     private static final Pattern BLOCK_START_HEADING = Pattern.compile("^(#{1,6})(\\s)");
     private static final Pattern BLOCK_START_ORDERED = Pattern.compile("^(\\d+)\\.(\\s)");
 
-    private enum Kind { PARAGRAPH, BULLET, ORDERED, CHECK, QUOTE, DEFINITION, HEADING, HR, CODE, TABLE }
+    private enum Kind { BLANK, PARAGRAPH, BULLET, ORDERED, CHECK, QUOTE, DEFINITION, HEADING, HR, CODE, TABLE }
 
     private record Chunk(Kind kind, String text) {
     }
@@ -62,6 +62,13 @@ public final class HtmlToMarkdown {
         document.outputSettings().prettyPrint(false);
         List<Chunk> chunks = new ArrayList<>();
         collectBlocks(document.body(), chunks, null);
+        // 文書の先頭・末尾の空のブロック（空の編集欄にあるプレースホルダーなど）は、空行として残さない。
+        while (!chunks.isEmpty() && chunks.get(0).kind() == Kind.BLANK) {
+            chunks.remove(0);
+        }
+        while (!chunks.isEmpty() && chunks.get(chunks.size() - 1).kind() == Kind.BLANK) {
+            chunks.remove(chunks.size() - 1);
+        }
         return join(chunks);
     }
 
@@ -146,13 +153,16 @@ public final class HtmlToMarkdown {
                     collectBlocks(el, chunks, align);
                 } else {
                     String text = inlineLine(el);
-                    if (!text.isEmpty()) {
+                    if (isOnlyBreaks(text)) {
+                        // 文章の無い空のブロック（エンターで空けた行）。文書の途中なら空行として残す。
+                        chunks.add(new Chunk(Kind.BLANK, text));
+                    } else if (!text.isEmpty()) {
                         chunks.add(new Chunk(Kind.PARAGRAPH, directive(align) + escapeBlockStart(text)));
                     }
                 }
             }
             case "h1", "h2", "h3", "h4", "h5", "h6" -> {
-                String text = inlineLine(el);
+                String text = contentLine(el);
                 if (!text.isEmpty()) {
                     int level = tag.charAt(1) - '0';
                     chunks.add(new Chunk(Kind.HEADING, directive(align) + "#".repeat(level) + " " + text));
@@ -181,7 +191,7 @@ public final class HtmlToMarkdown {
             case "pre" -> addCodeBlock(el, chunks);
             case "table" -> addTable(el, chunks, align);
             case "dd" -> {
-                String text = inlineLine(el);
+                String text = contentLine(el);
                 if (!text.isEmpty()) {
                     chunks.add(new Chunk(Kind.DEFINITION, ": " + text));
                 }
@@ -193,7 +203,7 @@ public final class HtmlToMarkdown {
     /** 引用の中身を行ごとに集める（中に段落などのブロックがあれば、それぞれを1行とする）。 */
     private static void leafLines(Element el, List<String> out) {
         if (!hasBlockChild(el)) {
-            String text = inlineLine(el);
+            String text = contentLine(el);
             if (!text.isEmpty()) {
                 out.add(text);
             }
@@ -242,6 +252,7 @@ public final class HtmlToMarkdown {
     }
 
     private static void addListItem(Element li, boolean ordered, int number, List<Chunk> chunks, String align) {
+        int trailing = removeTrailingBreaks(li);
         StringBuilder sb = new StringBuilder();
         for (Node child : li.childNodes()) {
             if (child instanceof Element element
@@ -254,12 +265,14 @@ public final class HtmlToMarkdown {
         if (text.isEmpty()) {
             return;
         }
+        text = withTrailingBreaks(wrapBlockStyle(li, text), trailing);
         String prefix = ordered ? number + ". " : "- ";
         chunks.add(new Chunk(ordered ? Kind.ORDERED : Kind.BULLET, directive(align) + prefix + text));
     }
 
     private static void addCheckItem(Element item, List<Chunk> chunks, String align) {
         boolean checked = false;
+        int trailing = removeTrailingBreaks(item);
         StringBuilder sb = new StringBuilder();
         for (Node child : item.childNodes()) {
             if (child instanceof Element element && element.normalName().equals("input")) {
@@ -269,6 +282,9 @@ public final class HtmlToMarkdown {
             }
         }
         String text = finishLine(sb);
+        if (!text.isEmpty()) {
+            text = withTrailingBreaks(wrapBlockStyle(item, text), trailing);
+        }
         chunks.add(new Chunk(Kind.CHECK, directive(align) + (checked ? "- [x] " : "- [ ] ") + text));
     }
 
@@ -307,11 +323,13 @@ public final class HtmlToMarkdown {
             List<String> cells = new ArrayList<>();
             for (Element cell : row.children()) {
                 if (cell.normalName().equals("td") || cell.normalName().equals("th")) {
+                    removeTrailingBreaks(cell);
                     StringBuilder cellText = new StringBuilder();
                     for (Node n : cell.childNodes()) {
                         inline(n, cellText);
                     }
-                    cells.add(finishLine(cellText));
+                    String cellLine = finishLine(cellText);
+                    cells.add(cellLine.isEmpty() ? cellLine : wrapBlockStyle(cell, cellLine));
                 }
             }
             if (cells.isEmpty()) {
@@ -412,11 +430,93 @@ public final class HtmlToMarkdown {
 
     /** 要素の中身を1行のMarkdown（段落内の改行は&lt;br&gt;）にする。 */
     private static String inlineLine(Element el) {
+        int trailing = removeTrailingBreaks(el);
         StringBuilder sb = new StringBuilder();
         for (Node child : el.childNodes()) {
             inline(child, sb);
         }
-        return finishLine(sb);
+        String text = finishLine(sb);
+        if (text.isEmpty()) {
+            // 文章が無く改行だけのブロックは、改行の数を<br>で表す（呼び出し側が空行として扱う）。
+            return "<br>".repeat(trailing);
+        }
+        return withTrailingBreaks(wrapBlockStyle(el, text), trailing);
+    }
+
+    /** 見出し・引用・定義などの中身。改行だけで文章が無ければ空文字（出力しない）。 */
+    private static String contentLine(Element el) {
+        String text = inlineLine(el);
+        return isOnlyBreaks(text) ? "" : text;
+    }
+
+    private static boolean isOnlyBreaks(String text) {
+        return !text.isEmpty() && text.replace("<br>", "").isEmpty();
+    }
+
+    /**
+     * 行末の改行を整理する。行末に1つだけある&lt;br&gt;は、ブロックの最後では何も表示されない（キャレットの
+     * 置き場所を示す目印にすぎない）ので捨て、2つ以上あるときは、エンターで空けた行間として全て残す。
+     */
+    private static String withTrailingBreaks(String text, int trailing) {
+        return trailing >= 2 ? text + "<br>".repeat(trailing) : text;
+    }
+
+    /**
+     * ブロックの末尾に並ぶ&lt;br&gt;（span等のインライン要素の末尾にあるものも含む）をDOMから取り除き、その数を返す。
+     * 取り除いた結果、中身が空になったインライン要素も取り除く。
+     */
+    private static int removeTrailingBreaks(Element el) {
+        int removed = 0;
+        while (true) {
+            Node last = lastMeaningfulChild(el);
+            if (!(last instanceof Element child)) {
+                return removed;
+            }
+            if (child.normalName().equals("br")) {
+                child.remove();
+                removed++;
+                continue;
+            }
+            if (isBlock(child) || child.hasAttr("data-md") || child.normalName().equals("img")
+                || child.normalName().equals("input")) {
+                return removed;
+            }
+            removed += removeTrailingBreaks(child);
+            if (child.text().isBlank() && child.selectFirst("img,[data-md]") == null) {
+                child.remove();
+                continue;
+            }
+            return removed;
+        }
+    }
+
+    private static Node lastMeaningfulChild(Element el) {
+        List<Node> kids = el.childNodes();
+        for (int i = kids.size() - 1; i >= 0; i--) {
+            Node n = kids.get(i);
+            if (n instanceof TextNode text && text.getWholeText().replace('\u00a0', ' ').isBlank()) {
+                continue;
+            }
+            return n;
+        }
+        return null;
+    }
+
+    /** ブロック要素自身に付いた色・文字サイズ等のstyleを、中身を包むspanとして表す。 */
+    private static String wrapBlockStyle(Element el, String text) {
+        String css = cssOf(parseStyle(el.attr("style")));
+        return css.isEmpty() ? text : "<span style=\"" + css + "\">" + text + "</span>";
+    }
+
+    /** styleのうち、Markdown上でspanとして表せる色・背景色・文字サイズ・書体だけを取り出す。 */
+    private static String cssOf(Map<String, String> style) {
+        StringBuilder css = new StringBuilder();
+        appendDeclaration(css, "color", cleanColor(style.get("color")));
+        appendDeclaration(css, "background-color", cleanColor(style.get("background-color")));
+        appendDeclaration(css, "font-size", cleanValue(style.get("font-size")));
+        String family = style.get("font-family");
+        appendDeclaration(css, "font-family", family == null ? null : cleanValue(family.replace('"', '\'')));
+        return css.toString();
     }
 
     /** 目印の改行を&lt;br&gt;へ戻し、前後の空白と末尾の改行（キャレット位置の目印にすぎない）を取り除く。 */
@@ -509,7 +609,18 @@ public final class HtmlToMarkdown {
             out.append(inner);
             return;
         }
-        out.append(open).append(inner).append(close);
+        String css = cssOf(parseStyle(el.attr("style")));
+        if (css.isEmpty()) {
+            out.append(open).append(inner).append(close);
+        } else if (el.normalName().equals("rt")) {
+            // ルビの読みの色などは、読みの文字を包む。
+            out.append(open).append("<span style=\"").append(css).append("\">").append(inner)
+                .append("</span>").append(close);
+        } else {
+            // ブラウザは、書式のかかった範囲ちょうどを選んだときなど、既存のb・i・small等の要素へ直接styleを付ける。
+            out.append("<span style=\"").append(css).append("\">").append(open).append(inner).append(close)
+                .append("</span>");
+        }
     }
 
     private static void inlineCode(Element el, StringBuilder out) {
@@ -517,11 +628,9 @@ public final class HtmlToMarkdown {
         if (text.isEmpty()) {
             return;
         }
-        if (text.indexOf('`') >= 0) {
-            out.append(escapeText(text));
-        } else {
-            out.append('`').append(escapeText(text)).append('`');
-        }
+        String code = text.indexOf('`') >= 0 ? escapeText(text) : '`' + escapeText(text) + '`';
+        String css = cssOf(parseStyle(el.attr("style")));
+        out.append(css.isEmpty() ? code : "<span style=\"" + css + "\">" + code + "</span>");
     }
 
     private static void anchor(Element el, StringBuilder out) {
@@ -577,15 +686,10 @@ public final class HtmlToMarkdown {
         boolean underline = decoration.contains("underline");
         boolean strike = decoration.contains("line-through");
 
-        StringBuilder css = new StringBuilder();
-        appendDeclaration(css, "color", cleanColor(style.get("color")));
-        appendDeclaration(css, "background-color", cleanColor(style.get("background-color")));
-        appendDeclaration(css, "font-size", cleanValue(style.get("font-size")));
-        String family = style.get("font-family");
-        appendDeclaration(css, "font-family", family == null ? null : cleanValue(family.replace('"', '\'')));
+        String css = cssOf(style);
 
         String result = inner.toString();
-        if (css.length() > 0) {
+        if (!css.isEmpty()) {
             result = "<span style=\"" + css + "\">" + result + "</span>";
         }
         if (strike) {

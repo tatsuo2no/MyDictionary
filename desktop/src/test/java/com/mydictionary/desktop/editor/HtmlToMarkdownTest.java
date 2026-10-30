@@ -146,10 +146,64 @@ class HtmlToMarkdownTest {
     }
 
     @Test
-    void trailingAndSurroundingLineBreaksAreDropped() {
+    void singleTrailingLineBreakIsJustACaretMarkerAndDropped() {
         assertEquals("A", HtmlToMarkdown.convert("<p>A<br></p>"));
-        assertEquals("A<br>B", HtmlToMarkdown.convert("<p>A <br> B<br><br></p>"));
+        assertEquals("A<br>B", HtmlToMarkdown.convert("<p>A <br> B<br></p>"));
         assertEquals("", HtmlToMarkdown.convert("<p><br></p>"));
+    }
+
+    @Test
+    void lineBreaksAddedAtTheEndOfALineToOpenSpaceAreKept() {
+        // 行末でエンターを押すと「文章+br+br」になる。2つ目のbrは空行として見えているので残す。
+        assertEquals("A<br><br>", HtmlToMarkdown.convert("<p>A<br><br></p>"));
+        assertEquals("A<br><br><br>", HtmlToMarkdown.convert("<p>A<br><br><br></p>"));
+        // brが色などのspanの中にあっても数える。
+        assertEquals("<span style=\"color:red\">A</span><br><br>",
+            HtmlToMarkdown.convert("<p><span style=\"color: red;\">A<br></span><br></p>"));
+        assertEquals("A<br><br>\n\n# 見出し", HtmlToMarkdown.convert("<p>A<br><br></p><h1>見出し</h1>"));
+    }
+
+    @Test
+    void spaceBeforeAHeadingSurvivesRepeatedSaves() {
+        String md = "前の文<br><br>\n\n# 見出し";
+        MarkdownRenderer renderer = new MarkdownRenderer();
+        String once = HtmlToMarkdown.convert(renderer.renderForEditor(md).replace("<br/>\n", "<br>"));
+        assertEquals(md, once);
+        assertEquals(md, HtmlToMarkdown.convert(renderer.renderForEditor(once).replace("<br/>\n", "<br>")));
+    }
+
+    @Test
+    void emptyBlocksBetweenContentAreKeptAsBlankLinesButNotAtTheEnds() {
+        assertEquals("a\n\n<br>\n\nb", HtmlToMarkdown.convert("<p>a</p><div><br></div><p>b</p>"));
+        assertEquals("a\n\n<br><br>\n\nb", HtmlToMarkdown.convert("<p>a</p><div><br><br></div><p>b</p>"));
+        assertEquals("a", HtmlToMarkdown.convert("<p><br></p><p>a</p><div><br></div>"));
+    }
+
+    @Test
+    void colorPutDirectlyOnAnInlineFormattingElementIsKept() {
+        // ブラウザは、書式のかかった範囲ちょうどを選んで色を付けると、b・i等へ直接styleを付ける。
+        assertEquals("<span style=\"color:red\">*斜体*</span>",
+            HtmlToMarkdown.convert("<p><i style=\"color: red;\">斜体</i></p>"));
+        assertEquals("<span style=\"color:red\">**太字**</span>",
+            HtmlToMarkdown.convert("<p><b style=\"color: red;\">太字</b></p>"));
+        assertEquals("<span style=\"color:red\"><big>大</big></span>",
+            HtmlToMarkdown.convert("<p><big style=\"color: red;\">大</big></p>"));
+        assertEquals("<ruby>漢字<rt><span style=\"color:red\">かんじ</span></rt></ruby>",
+            HtmlToMarkdown.convert("<p><ruby>漢字<rt style=\"color: red;\">かんじ</rt></ruby></p>"));
+        assertEquals("<span style=\"color:red\">`コード`</span>",
+            HtmlToMarkdown.convert("<p><code style=\"color: red;\">コード</code></p>"));
+    }
+
+    @Test
+    void colorPutOnABlockElementIsKept() {
+        assertEquals("# <span style=\"color:red\">見出し</span>",
+            HtmlToMarkdown.convert("<h1 style=\"color: red;\">見出し</h1>"));
+        assertEquals("- <span style=\"color:blue\">項目</span>",
+            HtmlToMarkdown.convert("<ul><li style=\"color: blue;\">項目</li></ul>"));
+        assertEquals("<span style=\"color:red\">本文</span>",
+            HtmlToMarkdown.convert("<p style=\"color: red;\">本文</p>"));
+        assertEquals("| <span style=\"color:red\">a</span> |\n| --- |",
+            HtmlToMarkdown.convert("<table><tr><th style=\"color: red;\">a</th></tr></table>"));
     }
 
     @Test
