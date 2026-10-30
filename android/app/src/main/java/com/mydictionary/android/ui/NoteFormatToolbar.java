@@ -38,15 +38,21 @@ import java.util.function.Supplier;
  * ノート編集画面の本文欄（EditText）の上に置く書式設定ツールバー（デスクトップ版の
  * NoteFormatToolbarと同じ機能・同じ並び）。ボタンを押すと本文欄で選択中の範囲にMarkdown風記法を
  * 自動で挿入/解除する。変換ロジックは両OS共通のcoreの{@link MarkdownEditing}。
- * 画面幅に収まらないため書式ボタンは横スクロールで、先頭の「Markdown編集」ボタンだけは固定表示して
- * 押すと書式ボタンを隠せる（数式のTeX記法などを直接書くとき用）。
+ * 画面が狭いため、ボタンは4つのリボンに分けて1つずつ表示し、左端の切り替えボタンで巡回する。
+ * リボン④の「Markdown編集」を押すと書式ボタンを隠せる（数式のTeX記法などを直接書くとき用）。
  */
 final class NoteFormatToolbar {
     private static final String[] FONT_SIZES_PT = {
         "8", "9", "10", "11", "12", "14", "16", "18", "20", "22", "24", "28", "32", "36", "48", "72"};
     private static final int MAX_TABLE_ROWS = 100;
     private static final int MAX_TABLE_COLUMNS = 20;
-    private static final int BUTTON_SIZE_DP = 44;
+    private static final int BUTTON_HEIGHT_DP = 44;
+    /** 1つのリボンに最大6個並ぶため、画面幅（約360dp）に収まるよう狭めにしている。 */
+    private static final int BUTTON_WIDTH_DP = 42;
+    private static final int RIBBON_BUTTON_WIDTH_DP = 38;
+    private static final int RIBBON_COUNT = 4;
+    /** ルビ・テーブルのアイコン画像（PNG）を表示する大きさ。 */
+    private static final int ICON_IMAGE_SIZE_DP = 24;
     /** 見出しウィンドウに出す見出しレベルは1〜5（レベル6は本文と同じ大きさなので出さない）。 */
     private static final int MAX_HEADING_LEVEL = 5;
 
@@ -56,10 +62,17 @@ final class NoteFormatToolbar {
     private final Runnable onInsertImage;
     private final String bookFontFamily;
     private final int baseFontSizePt;
-    /** 1行目（文字の装飾・配置）と2行目（見出し・リスト・挿入）。どちらも横スクロール。 */
-    private final LinearLayout firstRow;
-    private final LinearLayout secondRow;
+    /**
+     * 4つのリボン（ボタンの並び）。①文字の装飾 ②フォント・ルビ・配置 ③見出し・リスト・挿入 ④引用・コード・Markdown編集。
+     * 画面には常に1つだけ出し、左端の切り替えボタンで ①→②→③→④→① と巡回する。幅が足りない端末のために横スクロール。
+     */
+    private final List<HorizontalScrollView> ribbons = new ArrayList<>();
+    private final List<LinearLayout> ribbonRows = new ArrayList<>();
+    /** リボン④のうち、Markdown編集中は隠す書式ボタン（「Markdown編集」ボタン以外）。 */
+    private final List<View> markdownModeHidden = new ArrayList<>();
     private LinearLayout currentRow;
+    private int ribbonIndex;
+    private boolean markdownMode;
 
     /**
      * bookFontFamily・baseFontSizePtは、見出しウィンドウで「ノートで実際に表示される大きさ」を
@@ -75,51 +88,73 @@ final class NoteFormatToolbar {
         this.bookFontFamily = bookFontFamily;
         this.baseFontSizePt = baseFontSizePt;
 
-        firstRow = new LinearLayout(activity);
-        firstRow.setOrientation(LinearLayout.HORIZONTAL);
-        secondRow = new LinearLayout(activity);
-        secondRow.setOrientation(LinearLayout.HORIZONTAL);
-        currentRow = firstRow;
+        for (int i = 0; i < RIBBON_COUNT; i++) {
+            LinearLayout row = new LinearLayout(activity);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            ribbonRows.add(row);
+            HorizontalScrollView scroll = new HorizontalScrollView(activity);
+            scroll.setHorizontalScrollBarEnabled(false);
+            scroll.addView(row);
+            ribbons.add(scroll);
+        }
         buildButtons();
 
-        HorizontalScrollView firstScroll = scrollOf(firstRow);
-        HorizontalScrollView secondScroll = scrollOf(secondRow);
-
-        Button modeButton = baseButton(activity.getString(R.string.fmt_markdown_mode));
-        modeButton.setLayoutParams(new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.WRAP_CONTENT, dp(BUTTON_SIZE_DP)));
-        modeButton.setPadding(dp(8), 0, dp(8), 0);
-        modeButton.setOnClickListener(v -> {
-            boolean markdownMode = firstScroll.getVisibility() == View.VISIBLE;
-            int visibility = markdownMode ? View.GONE : View.VISIBLE;
-            firstScroll.setVisibility(visibility);
-            secondScroll.setVisibility(visibility);
-            modeButton.setText(activity.getString(markdownMode
-                ? R.string.fmt_markdown_mode_off : R.string.fmt_markdown_mode));
+        // 左端に固定表示するリボン切り替えボタン（現在のリボン番号を表示し、押すたびに次のリボンへ）。
+        Button ribbonButton = baseButton(ribbonLabel(0));
+        ribbonButton.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        ribbonButton.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
+        ribbonButton.setLayoutParams(buttonParams(dp(RIBBON_BUTTON_WIDTH_DP)));
+        decorate(ribbonButton, R.string.fmt_ribbon_switch, () -> {
+            ribbonIndex = (ribbonIndex + 1) % RIBBON_COUNT;
+            ribbonButton.setText(ribbonLabel(ribbonIndex));
+            showRibbon(ribbonIndex);
         });
+        this.ribbonButton = ribbonButton;
 
-        // 1行目: 固定表示の「Markdown編集」＋装飾ボタン、2行目: 見出しから始まるボタン群。
-        LinearLayout top = new LinearLayout(activity);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-        top.addView(modeButton);
-        top.addView(firstScroll, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        LinearLayout bar = new LinearLayout(activity);
+        bar.setOrientation(LinearLayout.HORIZONTAL);
+        bar.setGravity(Gravity.CENTER_VERTICAL);
+        bar.addView(ribbonButton);
+        for (HorizontalScrollView scroll : ribbons) {
+            bar.addView(scroll, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        }
+        showRibbon(0);
 
         container.removeAllViews();
         container.setOrientation(LinearLayout.VERTICAL);
-        container.addView(top);
-        container.addView(secondScroll, new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        container.addView(bar);
     }
 
-    private HorizontalScrollView scrollOf(LinearLayout row) {
-        HorizontalScrollView scroll = new HorizontalScrollView(activity);
-        scroll.setHorizontalScrollBarEnabled(false);
-        scroll.addView(row);
-        return scroll;
+    private Button ribbonButton;
+
+    private static String ribbonLabel(int index) {
+        return String.valueOf((char) ('①' + index));
+    }
+
+    private void showRibbon(int index) {
+        for (int i = 0; i < ribbons.size(); i++) {
+            ribbons.get(i).setVisibility(i == index ? View.VISIBLE : View.GONE);
+        }
+    }
+
+    /**
+     * 「Markdown編集」の切り替え。編集中は書式ボタンを隠し、本文欄へ記法を直接書けるようにする
+     * （数式のTeX記法など）。戻すボタンはリボン④にあるため、編集中はそのボタンだけを残してリボン④を出す。
+     */
+    private void toggleMarkdownMode(Button modeButton) {
+        markdownMode = !markdownMode;
+        ribbonButton.setVisibility(markdownMode ? View.GONE : View.VISIBLE);
+        for (View view : markdownModeHidden) {
+            view.setVisibility(markdownMode ? View.GONE : View.VISIBLE);
+        }
+        showRibbon(markdownMode ? RIBBON_COUNT - 1 : ribbonIndex);
+        modeButton.setText(activity.getString(markdownMode
+            ? R.string.fmt_markdown_mode_off : R.string.fmt_markdown_mode));
     }
 
     private void buildButtons() {
+        // ---- リボン①: 文字の装飾
+        currentRow = ribbonRows.get(0);
         add(textButton("B", Typeface.BOLD, R.string.fmt_bold, () -> wrap("**")));
         add(textButton("I", Typeface.ITALIC, R.string.fmt_italic, () -> wrap("*")));
 
@@ -148,16 +183,18 @@ final class NoteFormatToolbar {
         backgroundColor.setOnClickListener(v -> showColorDialog(R.string.fmt_background_color, "background-color"));
         add(backgroundColor);
 
+        // ---- リボン②: フォント・サイズ・ルビ・配置
+        currentRow = ribbonRows.get(1);
         add(wideButton(activity.getString(R.string.fmt_font), R.string.fmt_font, this::showFontDialog));
         add(wideButton(activity.getString(R.string.fmt_font_size), R.string.fmt_font_size, this::showSizeDialog));
-        add(wideButton(activity.getString(R.string.fmt_ruby), R.string.fmt_ruby, this::onRuby));
+        add(iconButton(R.drawable.ic_ruby, ICON_IMAGE_SIZE_DP, R.string.fmt_ruby, this::onRuby));
 
-        add(iconButton(R.drawable.ic_align_left, R.string.fmt_align_left, () -> align("left")));
-        add(iconButton(R.drawable.ic_align_center, R.string.fmt_align_center, () -> align("center")));
-        add(iconButton(R.drawable.ic_align_right, R.string.fmt_align_right, () -> align("right")));
+        add(iconButton(R.drawable.ic_align_left, 0, R.string.fmt_align_left, () -> align("left")));
+        add(iconButton(R.drawable.ic_align_center, 0, R.string.fmt_align_center, () -> align("center")));
+        add(iconButton(R.drawable.ic_align_right, 0, R.string.fmt_align_right, () -> align("right")));
 
-        // ---- 2行目の先頭から: 見出し・リスト・挿入
-        currentRow = secondRow;
+        // ---- リボン③: 見出し・リスト・挿入
+        currentRow = ribbonRows.get(2);
         add(wideButton(activity.getString(R.string.fmt_heading), R.string.fmt_heading_tooltip,
             this::showHeadingDialog));
         add(textButton("•―", Typeface.BOLD, R.string.fmt_bullet_list,
@@ -165,19 +202,28 @@ final class NoteFormatToolbar {
         add(textButton("1.", Typeface.BOLD, R.string.fmt_numbered_list,
             () -> edit(t -> MarkdownEditing.toggleNumberedList(t, selStart(), selEnd()))));
 
-        add(iconButton(R.drawable.ic_photo, R.string.action_insert_image, onInsertImage));
-        add(textButton("田", Typeface.BOLD, R.string.fmt_table, this::onInsertTable));
+        add(iconButton(R.drawable.ic_photo, 0, R.string.action_insert_image, onInsertImage));
+        add(iconButton(R.drawable.ic_table, ICON_IMAGE_SIZE_DP, R.string.fmt_table, this::onInsertTable));
         add(textButton("―", Typeface.BOLD, R.string.fmt_horizontal_rule,
             () -> edit(t -> MarkdownEditing.insertHorizontalRule(t, selStart(), selEnd()))));
-        add(textButton("＞", Typeface.BOLD, R.string.fmt_quote,
-            () -> edit(t -> MarkdownEditing.toggleQuote(t, selStart(), selEnd()))));
-        add(textButton("”", Typeface.BOLD, R.string.fmt_inline_code, () -> wrap("`")));
-        add(textButton("</>", Typeface.BOLD, R.string.fmt_code_block,
-            () -> edit(t -> MarkdownEditing.wrapCodeBlock(t, selStart(), selEnd()))));
+
+        // ---- リボン④: 引用・コード・Markdown編集
+        currentRow = ribbonRows.get(3);
+        markdownModeHidden.add(add(textButton("＞", Typeface.BOLD, R.string.fmt_quote,
+            () -> edit(t -> MarkdownEditing.toggleQuote(t, selStart(), selEnd())))));
+        markdownModeHidden.add(add(textButton("”", Typeface.BOLD, R.string.fmt_inline_code, () -> wrap("`"))));
+        markdownModeHidden.add(add(textButton("</>", Typeface.BOLD, R.string.fmt_code_block,
+            () -> edit(t -> MarkdownEditing.wrapCodeBlock(t, selStart(), selEnd())))));
+
+        Button modeButton = wideButton(activity.getString(R.string.fmt_markdown_mode),
+            R.string.fmt_markdown_mode, null);
+        modeButton.setOnClickListener(v -> toggleMarkdownMode(modeButton));
+        add(modeButton);
     }
 
-    private void add(View button) {
+    private View add(View button) {
         currentRow.addView(button);
+        return button;
     }
 
     /**
@@ -432,34 +478,38 @@ final class NoteFormatToolbar {
     private Button textButton(String text, int style, int tooltipRes, Runnable action) {
         Button button = baseButton(text);
         button.setTypeface(Typeface.DEFAULT, style);
-        button.setLayoutParams(buttonParams(dp(BUTTON_SIZE_DP)));
+        button.setLayoutParams(buttonParams(dp(BUTTON_WIDTH_DP)));
         decorate(button, tooltipRes, action);
         return button;
     }
 
     private Button wideButton(String text, int tooltipRes, Runnable action) {
         Button button = baseButton(text);
-        button.setPadding(dp(10), 0, dp(10), 0);
+        button.setPadding(dp(8), 0, dp(8), 0);
         button.setLayoutParams(buttonParams(LinearLayout.LayoutParams.WRAP_CONTENT));
         decorate(button, tooltipRes, action);
         return button;
     }
 
-    private Button iconButton(int drawableRes, int tooltipRes, Runnable action) {
+    /** iconSizeDpが0なら、アイコン自身の大きさ（ベクター画像）で表示する。画像（PNG）は大きさを指定する。 */
+    private Button iconButton(int drawableRes, int iconSizeDp, int tooltipRes, Runnable action) {
         MaterialButton button = (MaterialButton) baseButton("");
         button.setIconResource(drawableRes);
+        if (iconSizeDp > 0) {
+            button.setIconSize(dp(iconSizeDp));
+        }
         button.setIconTint(null);
         button.setIconPadding(0);
         button.setIconGravity(MaterialButton.ICON_GRAVITY_TEXT_START);
-        button.setPadding(dp(12), 0, dp(12), 0);
-        button.setLayoutParams(buttonParams(dp(BUTTON_SIZE_DP)));
+        button.setPadding(dp(11), 0, dp(11), 0);
+        button.setLayoutParams(buttonParams(dp(BUTTON_WIDTH_DP)));
         decorate(button, tooltipRes, action);
         return button;
     }
 
     private LinearLayout.LayoutParams buttonParams(int width) {
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(width, dp(BUTTON_SIZE_DP));
-        params.setMargins(dp(2), 0, dp(2), 0);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(width, dp(BUTTON_HEIGHT_DP));
+        params.setMargins(dp(1), 0, dp(1), 0);
         return params;
     }
 
