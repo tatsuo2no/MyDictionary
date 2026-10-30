@@ -162,10 +162,16 @@ public final class HtmlToMarkdown {
                 }
             }
             case "h1", "h2", "h3", "h4", "h5", "h6" -> {
+                // 末尾の改行はcontentLineがDOMから取り除くので、空の見出しかどうかは先に調べる。
+                boolean emptyWithBreak = el.selectFirst("br") != null && el.text().isBlank()
+                    && el.selectFirst("img,[data-md]") == null;
                 String text = contentLine(el);
                 if (!text.isEmpty()) {
                     int level = tag.charAt(1) - '0';
                     chunks.add(new Chunk(Kind.HEADING, directive(align) + "#".repeat(level) + " " + text));
+                } else if (emptyWithBreak) {
+                    // 文章の無い見出し（見出しの先頭でエンターを押して空けた行）は、空行として残す。
+                    chunks.add(new Chunk(Kind.BLANK, "<br>"));
                 }
             }
             case "blockquote" -> {

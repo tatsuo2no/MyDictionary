@@ -230,6 +230,15 @@
     }
   }
 
+  /** キャレット(range)が、ブロックの文章の先頭（その前に文字・画像などが無い）にあるか。 */
+  function atBlockStart(block, range) {
+    var before = document.createRange();
+    before.selectNodeContents(block);
+    before.setEnd(range.startContainer, range.startOffset);
+    var frag = before.cloneContents();
+    return !frag.textContent && !frag.querySelector('img,br,.md-atom');
+  }
+
   function blockOf(node) {
     var n = node;
     while (n && n !== ED) {
@@ -1083,6 +1092,14 @@
   function handleEnter(e) {
     var r = currentRange();
     var b = r ? blockOf(r.startContainer) : null;
+    if (b && r.collapsed && /^H[1-6]$/.test(b.tagName) && atBlockStart(b, r)) {
+      // 見出しの先頭でのエンターは、見出しの手前に空行（通常の大きさの空の段落）を足す。
+      // 空の見出しが残ると、保存時に消える／見出しの大きさの空行になってしまうため。
+      e.preventDefault();
+      b.parentNode.insertBefore(emptyBlock(), b);
+      markDirty();
+      return;
+    }
     var inCell = r && !!(isEl(r.startContainer) ? r.startContainer : r.startContainer.parentNode).closest('td,th');
     if (inCell || e.shiftKey || (b && isPlain(b)) || !b) {
       e.preventDefault();

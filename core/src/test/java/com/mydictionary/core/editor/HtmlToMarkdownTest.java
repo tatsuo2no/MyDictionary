@@ -252,6 +252,13 @@ class HtmlToMarkdownTest {
     }
 
     @Test
+    void emptyHeadingBetweenBlocksIsKeptAsABlankLine() {
+        assertEquals("a\n\n<br>\n\n# 見出し", HtmlToMarkdown.convert("<p>a</p><h1><br></h1><h1>見出し</h1>"));
+        assertEquals("a\n\n<br>\n\n# 見出し", HtmlToMarkdown.convert("<p>a</p><p><br></p><h1>見出し</h1>"));
+        assertEquals("a\n\n<br>\n\n# 見出し", roundTrip("a\n\n<br>\n\n# 見出し"));
+    }
+
+    @Test
     void convertedMarkdownRendersTheSameHtmlAsTheOriginal() {
         String md = "# 題\n\n**太** と <span style=\"color:red\">赤</span><br>改行\n\n{: align=\"center\"}\n![図](a.png =100x)\n\n- a\n- b\n\n$x^2$";
         MarkdownRenderer renderer = new MarkdownRenderer();
