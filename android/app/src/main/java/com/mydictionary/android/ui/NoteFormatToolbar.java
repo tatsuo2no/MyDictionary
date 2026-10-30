@@ -27,19 +27,18 @@ import com.mydictionary.android.CustomFontFiles;
 import com.mydictionary.android.R;
 import com.mydictionary.core.markdown.CssNamedColors;
 import com.mydictionary.core.markdown.HeadingStyles;
-import com.mydictionary.core.markdown.MarkdownEditing;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Function;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
- * ノート編集画面の本文欄（EditText）の上に置く書式設定ツールバー（デスクトップ版の
- * NoteFormatToolbarと同じ機能・同じ並び）。ボタンを押すと本文欄で選択中の範囲にMarkdown風記法を
- * 自動で挿入/解除する。変換ロジックは両OS共通のcoreの{@link MarkdownEditing}。
+ * ノート編集画面の本文エディタ（{@link RichNoteEditor}）の上に置く書式設定ツールバー（デスクトップ版の
+ * NoteFormatToolbarと同じ機能・同じ並び）。ボタンを押すとエディタで選択中の範囲に書式を適用する。
  * 画面が狭いため、ボタンは4つのリボンに分けて1つずつ表示し、左端の切り替えボタンで巡回する。
- * リボン④の「Markdown編集」を押すと書式ボタンを隠せる（数式のTeX記法などを直接書くとき用）。
+ * リボン④の「Markdown編集」を押すと書式ボタンを隠し、本文をMarkdownのまま編集する欄に切り替える
+ * （数式のTeX記法などを直接書くとき用。切り替えは{@code onMarkdownMode}で画面側へ知らせる）。
  */
 final class NoteFormatToolbar {
     private static final String[] FONT_SIZES_PT = {
@@ -57,9 +56,10 @@ final class NoteFormatToolbar {
     private static final int MAX_HEADING_LEVEL = 5;
 
     private final Activity activity;
-    private final EditText body;
+    private final RichNoteEditor editor;
     private final Supplier<List<String>> fontFamilies;
     private final Runnable onInsertImage;
+    private final Consumer<Boolean> onMarkdownMode;
     private final String bookFontFamily;
     private final int baseFontSizePt;
     /**
@@ -78,13 +78,14 @@ final class NoteFormatToolbar {
      * bookFontFamily・baseFontSizePtは、見出しウィンドウで「ノートで実際に表示される大きさ」を
      * サンプル表示するための、このブックの本文フォントと標準サイズ(pt)。
      */
-    NoteFormatToolbar(Activity activity, LinearLayout container, EditText body,
+    NoteFormatToolbar(Activity activity, LinearLayout container, RichNoteEditor editor,
                       Supplier<List<String>> fontFamilies, Runnable onInsertImage,
-                      String bookFontFamily, int baseFontSizePt) {
+                      Consumer<Boolean> onMarkdownMode, String bookFontFamily, int baseFontSizePt) {
         this.activity = activity;
-        this.body = body;
+        this.editor = editor;
         this.fontFamilies = fontFamilies;
         this.onInsertImage = onInsertImage;
+        this.onMarkdownMode = onMarkdownMode;
         this.bookFontFamily = bookFontFamily;
         this.baseFontSizePt = baseFontSizePt;
 
@@ -150,21 +151,22 @@ final class NoteFormatToolbar {
         showRibbon(markdownMode ? RIBBON_COUNT - 1 : ribbonIndex);
         modeButton.setText(activity.getString(markdownMode
             ? R.string.fmt_markdown_mode_off : R.string.fmt_markdown_mode));
+        onMarkdownMode.accept(markdownMode);
     }
 
     private void buildButtons() {
         // ---- リボン①: 文字の装飾
         currentRow = ribbonRows.get(0);
-        add(textButton("B", Typeface.BOLD, R.string.fmt_bold, () -> wrap("**")));
-        add(textButton("I", Typeface.ITALIC, R.string.fmt_italic, () -> wrap("*")));
+        add(textButton("B", Typeface.BOLD, R.string.fmt_bold, editor::bold));
+        add(textButton("I", Typeface.ITALIC, R.string.fmt_italic, editor::italic));
 
-        Button underline = textButton("U", Typeface.NORMAL, R.string.fmt_underline, () -> wrap("__"));
+        Button underline = textButton("U", Typeface.NORMAL, R.string.fmt_underline, editor::underline);
         SpannableString u = new SpannableString("U");
         u.setSpan(new UnderlineSpan(), 0, 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
         underline.setText(u);
         add(underline);
 
-        Button strike = textButton("S", Typeface.NORMAL, R.string.fmt_strikethrough, () -> wrap("~~"));
+        Button strike = textButton("S", Typeface.NORMAL, R.string.fmt_strikethrough, editor::strikethrough);
         SpannableString s = new SpannableString("S");
         s.setSpan(new StrikethroughSpan(), 0, 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
         strike.setText(s);
@@ -197,23 +199,19 @@ final class NoteFormatToolbar {
         currentRow = ribbonRows.get(2);
         add(wideButton(activity.getString(R.string.fmt_heading), R.string.fmt_heading_tooltip,
             this::showHeadingDialog));
-        add(textButton("•―", Typeface.BOLD, R.string.fmt_bullet_list,
-            () -> edit(t -> MarkdownEditing.toggleBulletList(t, selStart(), selEnd()))));
-        add(textButton("1.", Typeface.BOLD, R.string.fmt_numbered_list,
-            () -> edit(t -> MarkdownEditing.toggleNumberedList(t, selStart(), selEnd()))));
+        add(textButton("•―", Typeface.BOLD, R.string.fmt_bullet_list, editor::toggleBulletList));
+        add(textButton("1.", Typeface.BOLD, R.string.fmt_numbered_list, editor::toggleNumberedList));
 
         add(iconButton(R.drawable.ic_photo, 0, R.string.action_insert_image, onInsertImage));
         add(iconButton(R.drawable.ic_table, ICON_IMAGE_SIZE_DP, R.string.fmt_table, this::onInsertTable));
-        add(textButton("―", Typeface.BOLD, R.string.fmt_horizontal_rule,
-            () -> edit(t -> MarkdownEditing.insertHorizontalRule(t, selStart(), selEnd()))));
+        add(textButton("―", Typeface.BOLD, R.string.fmt_horizontal_rule, editor::insertHorizontalRule));
 
         // ---- リボン④: 引用・コード・Markdown編集
         currentRow = ribbonRows.get(3);
-        markdownModeHidden.add(add(textButton("＞", Typeface.BOLD, R.string.fmt_quote,
-            () -> edit(t -> MarkdownEditing.toggleQuote(t, selStart(), selEnd())))));
-        markdownModeHidden.add(add(textButton("”", Typeface.BOLD, R.string.fmt_inline_code, () -> wrap("`"))));
+        markdownModeHidden.add(add(textButton("＞", Typeface.BOLD, R.string.fmt_quote, editor::toggleQuote)));
+        markdownModeHidden.add(add(textButton("”", Typeface.BOLD, R.string.fmt_inline_code, editor::inlineCode)));
         markdownModeHidden.add(add(textButton("</>", Typeface.BOLD, R.string.fmt_code_block,
-            () -> edit(t -> MarkdownEditing.wrapCodeBlock(t, selStart(), selEnd())))));
+            editor::toggleCodeBlock)));
 
         Button modeButton = wideButton(activity.getString(R.string.fmt_markdown_mode),
             R.string.fmt_markdown_mode, null);
@@ -240,8 +238,7 @@ final class NoteFormatToolbar {
         AlertDialog.Builder builder = new AlertDialog.Builder(activity)
             .setTitle(activity.getString(R.string.fmt_heading_title, baseFontSizePt))
             .setView(list)
-            .setNeutralButton(R.string.fmt_heading_clear, (d, which) ->
-                edit(t -> MarkdownEditing.setHeading(t, selStart(), selEnd(), 0)))
+            .setNeutralButton(R.string.fmt_heading_clear, (d, which) -> editor.setHeading(0))
             .setNegativeButton(android.R.string.cancel, null);
         AlertDialog dialog = builder.create();
 
@@ -256,7 +253,7 @@ final class NoteFormatToolbar {
             row.setPadding(dp(8), dp(10), dp(8), dp(10));
             row.setOnClickListener(v -> {
                 dialog.dismiss();
-                edit(t -> MarkdownEditing.setHeading(t, selStart(), selEnd(), chosen));
+                editor.setHeading(chosen);
             });
             list.addView(row);
         }
@@ -265,40 +262,12 @@ final class NoteFormatToolbar {
 
     // ---------------------------------------------------------------- 操作
 
-    /** 選択範囲の開始。一度もフォーカスされておらず選択位置が無い場合は本文末尾を指す。 */
-    private int selStart() {
-        int s = body.getSelectionStart();
-        return s < 0 ? body.getText().length() : s;
-    }
-
-    private int selEnd() {
-        int e = body.getSelectionEnd();
-        return e < 0 ? body.getText().length() : e;
-    }
-
-    private void edit(Function<String, MarkdownEditing.Result> transform) {
-        applyResult(transform.apply(body.getText().toString()));
-    }
-
-    private void wrap(String marker) {
-        edit(t -> MarkdownEditing.toggleWrap(t, selStart(), selEnd(), marker));
-    }
-
     private void applyStyle(String property, String value) {
-        edit(t -> MarkdownEditing.setSpanStyle(t, selStart(), selEnd(), property, value));
+        editor.setStyle(property, value);
     }
 
     private void align(String align) {
-        edit(t -> MarkdownEditing.setAlignment(t, selStart(), selEnd(), align));
-    }
-
-    private void applyResult(MarkdownEditing.Result result) {
-        Editable editable = body.getText();
-        if (!result.text().contentEquals(editable)) {
-            editable.replace(0, editable.length(), result.text());
-        }
-        body.setSelection(result.selectionStart(), result.selectionEnd());
-        body.requestFocus();
+        editor.align(align);
     }
 
     private void showColorDialog(int titleRes, String property) {
@@ -364,26 +333,25 @@ final class NoteFormatToolbar {
     }
 
     private void onRuby() {
-        int s = Math.min(selStart(), selEnd());
-        int e = Math.max(selStart(), selEnd());
-        if (s == e) {
+        editor.selectedText(selected -> {
+            if (selected.trim().isEmpty()) {
+                new AlertDialog.Builder(activity)
+                    .setMessage(R.string.fmt_ruby_select_first)
+                    .setPositiveButton(android.R.string.ok, null)
+                    .show();
+                return;
+            }
+            EditText input = new EditText(activity);
+            input.setSingleLine(true);
             new AlertDialog.Builder(activity)
-                .setMessage(R.string.fmt_ruby_select_first)
-                .setPositiveButton(android.R.string.ok, null)
+                .setTitle(R.string.fmt_ruby_title)
+                .setMessage(activity.getString(R.string.fmt_ruby_message, selected.trim()))
+                .setView(wrapWithMargin(input))
+                .setPositiveButton(android.R.string.ok, (d, which) ->
+                    editor.setRuby(input.getText().toString()))
+                .setNegativeButton(android.R.string.cancel, null)
                 .show();
-            return;
-        }
-        EditText input = new EditText(activity);
-        input.setSingleLine(true);
-        String selected = body.getText().toString().substring(s, e).trim();
-        new AlertDialog.Builder(activity)
-            .setTitle(R.string.fmt_ruby_title)
-            .setMessage(activity.getString(R.string.fmt_ruby_message, selected))
-            .setView(wrapWithMargin(input))
-            .setPositiveButton(android.R.string.ok, (d, which) -> applyResult(
-                MarkdownEditing.applyRuby(body.getText().toString(), s, e, input.getText().toString())))
-            .setNegativeButton(android.R.string.cancel, null)
-            .show();
+        });
     }
 
     private void onInsertTable() {
@@ -435,7 +403,7 @@ final class NoteFormatToolbar {
                 Integer c = parseInRange(columns.getText().toString(), MAX_TABLE_COLUMNS);
                 if (r != null && c != null) {
                     dialog.dismiss();
-                    edit(t -> MarkdownEditing.insertTable(t, selStart(), selEnd(), r, c));
+                    editor.insertTable(r, c);
                 }
             });
         });

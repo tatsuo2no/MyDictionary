@@ -1,4 +1,4 @@
-package com.mydictionary.desktop.editor;
+package com.mydictionary.core.editor;
 
 import com.mydictionary.core.markdown.MarkdownRenderer;
 import org.junit.jupiter.api.Test;

@@ -1,4 +1,4 @@
-package com.mydictionary.desktop.editor;
+package com.mydictionary.core.editor;
 
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -637,7 +637,7 @@ public final class HtmlToMarkdown {
         String href = el.attr("href");
         if (href.startsWith("#image:")) {
             Element img = el.selectFirst("img");
-            String path = URLDecoder.decode(href.substring("#image:".length()), StandardCharsets.UTF_8);
+            String path = decodeUrl(href.substring("#image:".length()));
             out.append(imageMarkdown(img, path));
         } else if (href.startsWith("#note:")) {
             out.append("[[").append(href.substring("#note:".length())).append('|').append(el.text()).append("]]");
@@ -651,7 +651,7 @@ public final class HtmlToMarkdown {
         if (img != null && path != null && !path.isEmpty() && img.attr("src").equals(path)) {
             // <a>に包まれていない画像は、srcのファイル名部分を保存名として使う。
             int slash = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
-            path = URLDecoder.decode(path.substring(slash + 1), StandardCharsets.UTF_8);
+            path = decodeUrl(path.substring(slash + 1));
         }
         StringBuilder md = new StringBuilder("![").append(alt).append("](").append(path);
         if (img != null) {
@@ -819,5 +819,14 @@ public final class HtmlToMarkdown {
             return ordered.group(1) + "\\." + line.substring(ordered.end(1) + 1);
         }
         return line;
+    }
+
+    /** URLデコード。Charset版はAndroid 12以前に無いため、文字コード名で指定する版を使う。 */
+    private static String decodeUrl(String value) {
+        try {
+            return URLDecoder.decode(value, StandardCharsets.UTF_8.name());
+        } catch (java.io.UnsupportedEncodingException e) {
+            throw new IllegalStateException(e);
+        }
     }
 }

@@ -12,6 +12,9 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 dependencies {
+    // ノート本文のエディタ（HTML→Markdown変換）で使う。デスクトップ版・Android版の両方から使うためここに置く。
+    api 'org.jsoup:jsoup:1.18.3'
+
     testImplementation platform('org.junit:junit-bom:5.11.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'

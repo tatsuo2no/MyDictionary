@@ -5,14 +5,11 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
-import android.webkit.WebResourceRequest;
-import android.webkit.WebResourceResponse;
-import android.webkit.WebView;
-import android.webkit.WebViewClient;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.Spinner;
 import android.widget.TextView;
@@ -36,7 +33,6 @@ import com.mydictionary.android.db.AndroidBookRepository;
 import com.mydictionary.android.db.AndroidNoteColumnRepository;
 import com.mydictionary.android.db.AndroidNoteRepository;
 import com.mydictionary.android.db.AndroidTagRepository;
-import com.mydictionary.core.markdown.MarkdownRenderer;
 import com.mydictionary.core.model.Book;
 import com.mydictionary.core.model.BookTheme;
 import com.mydictionary.core.model.Note;
@@ -54,6 +50,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * ノート作成/編集画面。noteIdがIntentに含まれていなければ新規作成、含まれていれば既存ノートの編集
@@ -78,8 +75,11 @@ public class NoteCreateActivity extends AppCompatActivity {
     private String bookFontFamily;
     private final Map<Long, EditText> columnFields = new LinkedHashMap<>();
 
+    /** 通常の本文編集（記法を見せず仕上がりの見た目のまま編集する）。 */
+    private RichNoteEditor richEditor;
+    /** 「Markdown編集」中だけ表示する、Markdownのまま編集する欄。 */
     private EditText bodyField;
-    private WebView previewWebView;
+    private boolean markdownMode;
     private TextView errorLabel;
 
     private final List<Tag> orderedTags = new ArrayList<>();
@@ -145,37 +145,72 @@ public class NoteCreateActivity extends AppCompatActivity {
 
         buildColumnFields();
         bodyField = findViewById(R.id.bodyField);
-        previewWebView = findViewById(R.id.previewWebView);
-        previewWebView.getSettings().setJavaScriptEnabled(true);
-        WebViewAssetLoader previewAssetLoader = new WebViewAssetLoader.Builder()
-            .addPathHandler(IMAGE_ASSET_PATH,
-                new WebViewAssetLoader.InternalStoragePathHandler(this, AppPaths.getImageDir(this)))
-            .addPathHandler(com.mydictionary.android.CustomFontFiles.ASSET_PATH,
-                com.mydictionary.android.CustomFontFiles.pathHandler(this))
-            .build();
-        previewWebView.setWebViewClient(new WebViewClient() {
-            @Override
-            public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
-                return previewAssetLoader.shouldInterceptRequest(request.getUrl());
-            }
-        });
         errorLabel = findViewById(R.id.errorLabel);
-
-        if (existingNote != null) {
-            bodyField.setText(existingNote.getBody());
-        }
+        buildRichEditor();
 
         buildTagSelector();
         buildAppearanceControls();
 
         findViewById(R.id.backButton).setOnClickListener(v -> onBack());
-        new NoteFormatToolbar(this, findViewById(R.id.formatToolbarContainer), bodyField,
+        new NoteFormatToolbar(this, findViewById(R.id.formatToolbarContainer), richEditor,
             () -> FontChoices.toolbarFamilies(this),
-            () -> pickImageLauncher.launch("image/*"), bookFontFamily, bookFontSizePt);
-        findViewById(R.id.previewButton).setOnClickListener(v -> updatePreview());
+            () -> pickImageLauncher.launch("image/*"), this::onMarkdownModeChanged,
+            bookFontFamily, bookFontSizePt);
         findViewById(R.id.saveButton).setOnClickListener(v -> onSave());
 
-        updatePreview();
+        applyEditorAppearance();
+    }
+
+    /**
+     * 本文のエディタ（WebView）を作って、Markdown編集欄の位置に置く。画像や自前フォントは仮想ドメイン経由で
+     * 配信する（file://直接参照はWebViewのセキュリティ制限でERR_ACCESS_DENIEDになるため）。
+     * 編集欄の高さは、画面を縦にスクロールしても十分に書ける広さ（画面の高さの6割）にしている。
+     */
+    private void buildRichEditor() {
+        WebViewAssetLoader assetLoader = new WebViewAssetLoader.Builder()
+            .addPathHandler(IMAGE_ASSET_PATH,
+                new WebViewAssetLoader.InternalStoragePathHandler(this, AppPaths.getImageDir(this)))
+            .addPathHandler(com.mydictionary.android.CustomFontFiles.ASSET_PATH,
+                com.mydictionary.android.CustomFontFiles.pathHandler(this))
+            .build();
+        richEditor = new RichNoteEditor(this, editorDocumentCss(), com.mydictionary.android.KatexAssets.headHtml(),
+            "https://appassets.androidplatform.net" + IMAGE_ASSET_PATH, assetLoader);
+        richEditor.setMarkdown(existingNote != null ? existingNote.getBody() : "");
+
+        FrameLayout container = findViewById(R.id.bodyContainer);
+        int height = Math.round(getResources().getDisplayMetrics().heightPixels * 0.6f);
+        container.addView(richEditor.getView(), new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT, height));
+    }
+
+    /** 現在の本文（Markdown）をcallbackへ渡す。Markdown編集中は入力欄、通常はエディタから得る。 */
+    private void currentMarkdown(Consumer<String> callback) {
+        if (markdownMode) {
+            callback.accept(bodyField.getText() == null ? "" : bodyField.getText().toString());
+        } else {
+            richEditor.getMarkdown(callback);
+        }
+    }
+
+    /** 「Markdown編集」の切替。切り替える側へ、いまの本文を引き継ぐ。 */
+    private void onMarkdownModeChanged(boolean markdown) {
+        if (markdown == markdownMode) {
+            return;
+        }
+        markdownMode = markdown;
+        if (markdown) {
+            richEditor.getMarkdown(text -> {
+                bodyField.setText(text);
+                bodyField.setVisibility(View.VISIBLE);
+                richEditor.getView().setVisibility(View.GONE);
+                bodyField.requestFocus();
+            });
+        } else {
+            richEditor.setMarkdown(bodyField.getText() == null ? "" : bodyField.getText().toString());
+            bodyField.setVisibility(View.GONE);
+            richEditor.getView().setVisibility(View.VISIBLE);
+            richEditor.requestFocus();
+        }
     }
 
     /**
@@ -216,7 +251,7 @@ public class NoteCreateActivity extends AppCompatActivity {
         backgroundThemeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                updatePreview();
+                applyEditorAppearance();
             }
 
             @Override
@@ -231,7 +266,7 @@ public class NoteCreateActivity extends AppCompatActivity {
         textColorSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                updatePreview();
+                applyEditorAppearance();
             }
 
             @Override
@@ -248,7 +283,7 @@ public class NoteCreateActivity extends AppCompatActivity {
         findViewById(R.id.clearBackgroundImageButton).setOnClickListener(v -> {
             backgroundImageFileName = null;
             updateBackgroundImageLabel();
-            updatePreview();
+            applyEditorAppearance();
         });
     }
 
@@ -371,13 +406,15 @@ public class NoteCreateActivity extends AppCompatActivity {
                 }
             }
 
-            int cursorPosition = bodyField.getSelectionStart();
-            if (cursorPosition < 0) {
-                cursorPosition = bodyField.getText().length();
+            if (markdownMode) {
+                int cursorPosition = bodyField.getSelectionStart();
+                if (cursorPosition < 0) {
+                    cursorPosition = bodyField.getText().length();
+                }
+                bodyField.getText().insert(cursorPosition, "![image](" + fileName + ")");
+            } else {
+                richEditor.insertImage(fileName, "image");
             }
-            String snippet = "![image](" + fileName + ")";
-            bodyField.getText().insert(cursorPosition, snippet);
-            updatePreview();
         } catch (IOException e) {
             Toast.makeText(this, getString(R.string.error_image_save_failed, e.getMessage()), Toast.LENGTH_LONG)
                 .show();
@@ -405,40 +442,41 @@ public class NoteCreateActivity extends AppCompatActivity {
             }
             backgroundImageFileName = fileName;
             updateBackgroundImageLabel();
-            updatePreview();
+            applyEditorAppearance();
         } catch (IOException e) {
             Toast.makeText(this, getString(R.string.error_background_image_save_failed, e.getMessage()),
                 Toast.LENGTH_LONG).show();
         }
     }
 
-    private void updatePreview() {
-        String bodyText = bodyField.getText() == null ? "" : bodyField.getText().toString();
-        String bodyHtml = new MarkdownRenderer().render(bodyText);
-
+    /** ノート本文の背景色・背景画像・文字色の設定を、編集欄の見た目に反映する。 */
+    private void applyEditorAppearance() {
+        if (richEditor == null || backgroundThemeSpinner == null || textColorSpinner == null) {
+            return;
+        }
         BookTheme backgroundTheme = (BookTheme) backgroundThemeSpinner.getSelectedItem();
         NoteTextColor textColor = (NoteTextColor) textColorSpinner.getSelectedItem();
+        if (backgroundTheme == null || textColor == null) {
+            return;
+        }
         String imageUrl = NoteAppearance.backgroundImageExists(this, backgroundImageFileName)
             ? "https://appassets.androidplatform.net" + IMAGE_ASSET_PATH + backgroundImageFileName
             : null;
-        String bodyAppearance = NoteAppearance.buildBodyStyleCss(backgroundTheme, imageUrl, textColor);
+        richEditor.setAppearance(NoteAppearance.buildBodyStyleCss(backgroundTheme, imageUrl, textColor));
+    }
 
-        String document = "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"/><style>"
-            + com.mydictionary.android.CustomFontFiles.fontFaceCss(this)
+    /** 編集欄（WebView）の書式。ノートの表示画面と同じ体裁（フォント・見出し・表・引用など）にそろえる。 */
+    private String editorDocumentCss() {
+        return com.mydictionary.android.CustomFontFiles.fontFaceCss(this)
             + "body{font-family:'" + bookFontFamily + "', sans-serif; font-size:" + bookFontSizePt
-            + "pt; padding:8px; line-height:1.6;" + bodyAppearance + "}"
+            + "pt; padding:8px; line-height:1.6;}"
             + "table{border-collapse:collapse;} td,th{border:1px solid #999;padding:4px 8px;}"
             + "blockquote{border-left:4px solid #999;margin:8px 0;padding:4px 12px;color:#555;}"
             + "pre{background:#f4f4f4;padding:8px;overflow-x:auto;}"
             + "rt{font-size:0.6em;}"
             + "img{max-width:100%;display:block;margin:8px 0;}"
             + "h1,h2,h3,h4,h5,h6{font-weight:bold;margin:0.8em 0 0.3em;}"
-            + com.mydictionary.core.markdown.HeadingStyles.css()
-            + "</style>" + com.mydictionary.android.KatexAssets.headHtml()
-            + "</head><body>" + bodyHtml + "</body></html>";
-
-        String baseUrl = "https://appassets.androidplatform.net" + IMAGE_ASSET_PATH;
-        previewWebView.loadDataWithBaseURL(baseUrl, document, "text/html", "UTF-8", null);
+            + com.mydictionary.core.markdown.HeadingStyles.css();
     }
 
     private void onSave() {
@@ -458,9 +496,11 @@ public class NoteCreateActivity extends AppCompatActivity {
             return;
         }
 
-        List<Long> tagIdsToSave = new ArrayList<>(selectedTagIds);
+        currentMarkdown(bodyText -> saveNote(fieldValues, bodyText));
+    }
 
-        String bodyText = bodyField.getText() == null ? "" : bodyField.getText().toString();
+    private void saveNote(Map<Long, String> fieldValues, String bodyText) {
+        List<Long> tagIdsToSave = new ArrayList<>(selectedTagIds);
 
         BookTheme backgroundTheme = (BookTheme) backgroundThemeSpinner.getSelectedItem();
         NoteTextColor textColor = (NoteTextColor) textColorSpinner.getSelectedItem();

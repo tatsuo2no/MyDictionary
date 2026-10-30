@@ -169,27 +169,21 @@
             android:layout_marginTop="4dp"
             android:orientation="horizontal" />
 
-        <EditText
-            android:id="@+id/bodyField"
+        <!-- 通常は本文エディタ（WebView。コードで追加）、「Markdown編集」中だけbodyFieldを表示する -->
+        <FrameLayout
+            android:id="@+id/bodyContainer"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="top"
-            android:inputType="textMultiLine"
-            android:minLines="10" />
+            android:layout_height="wrap_content">
 
-        <Button
-            android:id="@+id/previewButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="@string/action_update_preview" />
-
-        <WebView
-            android:id="@+id/previewWebView"
-            tools:ignore="WebViewLayout"
-            android:layout_width="match_parent"
-            android:layout_height="300dp"
-            android:layout_marginTop="8dp" />
+            <EditText
+                android:id="@+id/bodyField"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="top"
+                android:inputType="textMultiLine"
+                android:minLines="10"
+                android:visibility="gone" />
+        </FrameLayout>
 
         <TextView
             android:id="@+id/errorLabel"

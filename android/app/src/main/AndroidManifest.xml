@@ -28,7 +28,8 @@
         <activity android:name=".ui.TagActivity" android:exported="false" />
         <activity android:name=".ui.NoteColumnActivity" android:exported="false" />
         <activity android:name=".ui.NoteActivity" android:exported="false" />
-        <activity android:name=".ui.NoteCreateActivity" android:exported="false" />
+        <activity android:name=".ui.NoteCreateActivity" android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
 
     </application>
 

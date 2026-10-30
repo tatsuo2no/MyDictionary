@@ -1079,18 +1079,31 @@
     });
   }
 
+  // エンターは、表のセル・Shift・通常の段落では段落を増やさず、その場の改行(br)にする。
+  function handleEnter(e) {
+    var r = currentRange();
+    var b = r ? blockOf(r.startContainer) : null;
+    var inCell = r && !!(isEl(r.startContainer) ? r.startContainer : r.startContainer.parentNode).closest('td,th');
+    if (inCell || e.shiftKey || (b && isPlain(b)) || !b) {
+      e.preventDefault();
+      document.execCommand('insertLineBreak', false, null);
+      markDirty();
+    }
+  }
+
+  // Androidのソフトキーボードのエンターは、keydownのキーコードが229（入力中）で届くことがあり
+  // keydownでは捉えられないため、入力直前のbeforeinputで段落の挿入を同じように置き換える。
+  ED.addEventListener('beforeinput', function (e) {
+    if (e.inputType === 'insertParagraph' && !e.isComposing) {
+      handleEnter(e);
+    }
+  });
+
   ED.addEventListener('keydown', function (e) {
     var isEnter = e.key === 'Enter' || e.keyCode === 13;
     // 日本語入力の変換確定のエンターは、ここでは扱わない。
     if (isEnter && !e.isComposing && e.keyCode !== 229) {
-      var r = currentRange();
-      var b = r ? blockOf(r.startContainer) : null;
-      var inCell = r && !!(isEl(r.startContainer) ? r.startContainer : r.startContainer.parentNode).closest('td,th');
-      if (inCell || e.shiftKey || (b && isPlain(b)) || !b) {
-        e.preventDefault();
-        document.execCommand('insertLineBreak', false, null);
-        markDirty();
-      }
+      handleEnter(e);
     } else if ((e.key === 'Tab' || e.keyCode === 9) && !e.isComposing) {
       var rr = currentRange();
       var start = rr ? (isEl(rr.startContainer) ? rr.startContainer : rr.startContainer.parentNode) : null;

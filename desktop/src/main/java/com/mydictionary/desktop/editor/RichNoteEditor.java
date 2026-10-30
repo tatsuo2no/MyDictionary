@@ -1,5 +1,6 @@
 package com.mydictionary.desktop.editor;
 
+import com.mydictionary.core.editor.RichEditorSupport;
 import com.mydictionary.core.markdown.MarkdownRenderer;
 import javafx.concurrent.Worker;
 import javafx.scene.Node;
@@ -7,28 +8,23 @@ import javafx.scene.web.WebEngine;
 import javafx.scene.web.WebView;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Pattern;
 
 /**
  * ノート本文を「Wordのように」記法を見せずに編集するエディタ（WebViewのcontenteditable）。
  * 表示は{@link MarkdownRenderer#renderForEditor}が作るHTMLで、編集結果は{@link HtmlToMarkdown}で
- * Markdownへ戻す。書式の適用やブロックの変換はクラスパス上の{@code editor.js}（{@code window.MDE}）が行い、
+ * Markdownへ戻す。書式の適用やブロックの変換はクラスパス上の{@code editor.js}（{@code window.MDE}、coreに置いて
+ * Android版と共用）が行い、
  * このクラスはそれを{@link WebEngine#executeScript}で呼び出す。
  * <p>
  * 一度も編集されていない間は、読み込んだMarkdownをそのまま返す（開いて保存しただけで、
  * 段落内の改行などの書式が変換で変わってしまうのを避けるため）。
  */
 public final class RichNoteEditor {
-    private static final Pattern FOOTNOTE_DEF = Pattern.compile("^\\[\\^(.+?)]:\\s*(.+)$");
-    private static final String SCRIPT_RESOURCE = "/com/mydictionary/desktop/editor/editor.js";
-
     private final WebView webView = new WebView();
     private final WebEngine engine = webView.getEngine();
     private final List<Runnable> pending = new ArrayList<>();
@@ -54,13 +50,7 @@ public final class RichNoteEditor {
                 toRun.forEach(Runnable::run);
             }
         });
-        String page = "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"/><style>" + styleCss
-            + "html,body{height:100%;margin:0;box-sizing:border-box;}"
-            + "#ed{outline:none;min-height:calc(100% - 4px);}"
-            + ".md-atom{display:inline-block;cursor:default;}"
-            + "</style><style id=\"appearance\"></style>" + headHtml
-            + "</head><body><div id=\"ed\" contenteditable=\"true\" spellcheck=\"false\"></div>"
-            + "<script>" + loadScript() + "</script></body></html>";
+        String page = RichEditorSupport.pageHtml(styleCss, headHtml);
         try {
             Files.createDirectories(pageFile.getParent());
             Files.writeString(pageFile, page, StandardCharsets.UTF_8);
@@ -85,11 +75,7 @@ public final class RichNoteEditor {
         String md = markdown == null ? "" : markdown;
         loadedMarkdown = md;
         footnoteDefinitions.clear();
-        for (String line : md.split("\n", -1)) {
-            if (FOOTNOTE_DEF.matcher(line.trim()).matches()) {
-                footnoteDefinitions.add(line.trim());
-            }
-        }
+        footnoteDefinitions.addAll(RichEditorSupport.footnoteDefinitions(md));
         String html = new MarkdownRenderer().renderForEditor(md);
         whenReady(() -> call("MDE.setBody(" + quote(html) + ")"));
     }
@@ -100,12 +86,7 @@ public final class RichNoteEditor {
             return loadedMarkdown;
         }
         Object html = call("MDE.getHtml()");
-        String body = HtmlToMarkdown.convert(html instanceof String s ? s : "");
-        if (footnoteDefinitions.isEmpty()) {
-            return body;
-        }
-        String defs = String.join("\n", footnoteDefinitions);
-        return body.isEmpty() ? defs : body + "\n\n" + defs;
+        return RichEditorSupport.toMarkdown(html instanceof String s ? s : "", footnoteDefinitions);
     }
 
     public boolean isDirty() {
@@ -189,11 +170,7 @@ public final class RichNoteEditor {
 
     /** 画像（画像フォルダ内のfileName）をカーソル位置へ挿入する。 */
     public void insertImage(String fileName, String altText) {
-        String encoded = URLEncoder.encode(fileName, StandardCharsets.UTF_8);
-        String src = encoded.replace("+", "%20");
-        String html = "<a href=\"#image:" + encoded + "\" contenteditable=\"false\"><img alt=\""
-            + escapeAttribute(altText) + "\" src=\"" + src + "\"/></a>";
-        run("MDE.image(" + quote(html) + ")");
+        run("MDE.image(" + quote(RichEditorSupport.imageHtml(fileName, altText)) + ")");
     }
 
     private void command(String name) {
@@ -229,42 +206,7 @@ public final class RichNoteEditor {
 
     // ---------------------------------------------------------------- 補助
 
-    private static String loadScript() {
-        try (InputStream in = RichNoteEditor.class.getResourceAsStream(SCRIPT_RESOURCE)) {
-            if (in == null) {
-                throw new IllegalStateException("エディタのスクリプトが見つかりません: " + SCRIPT_RESOURCE);
-            }
-            return new String(in.readAllBytes(), StandardCharsets.UTF_8).replace("</script", "<\\/script");
-        } catch (IOException e) {
-            throw new IllegalStateException("エディタのスクリプトを読み込めません", e);
-        }
-    }
-
-    /** JavaScriptの文字列リテラル（ダブルクォート付き）にする。 */
-    static String quote(String text) {
-        StringBuilder sb = new StringBuilder("\"");
-        for (int i = 0; i < text.length(); i++) {
-            char c = text.charAt(i);
-            switch (c) {
-                case '\\' -> sb.append("\\\\");
-                case '"' -> sb.append("\\\"");
-                case '\n' -> sb.append("\\n");
-                case '\r' -> sb.append("\\r");
-                case ' ' -> sb.append("\\u2028");
-                case ' ' -> sb.append("\\u2029");
-                default -> {
-                    if (c < 0x20) {
-                        sb.append(String.format("\\u%04x", (int) c));
-                    } else {
-                        sb.append(c);
-                    }
-                }
-            }
-        }
-        return sb.append('"').toString();
-    }
-
-    private static String escapeAttribute(String text) {
-        return text.replace("&", "&amp;").replace("\"", "&quot;").replace("<", "&lt;").replace(">", "&gt;");
+    private static String quote(String text) {
+        return RichEditorSupport.quote(text);
     }
 }
