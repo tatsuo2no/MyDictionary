@@ -6,6 +6,8 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 
+import com.mydictionary.core.repository.DeletionLogSchema;
+
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -16,7 +18,7 @@ import java.util.UUID;
 /** デスクトップ版SqliteDatabaseと同じスキーマをAndroidのSQLiteOpenHelperで再現する。 */
 public class DictionaryDbHelper extends SQLiteOpenHelper {
     private static final String DATABASE_NAME = "mydictionary.db";
-    private static final int DATABASE_VERSION = 10;
+    private static final int DATABASE_VERSION = 11;
 
     public DictionaryDbHelper(Context context) {
         super(context.getApplicationContext(), DATABASE_NAME, null, DATABASE_VERSION);
@@ -126,7 +128,18 @@ public class DictionaryDbHelper extends SQLiteOpenHelper {
             + "FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE,"
             + "FOREIGN KEY (column_id) REFERENCES note_columns(id) ON DELETE CASCADE)");
 
+        createDeletionLog(db);
         migrateExistingRows(db);
+    }
+
+    /**
+     * 削除の記録（片方の端末で削除した内容を、同期でもう片方へ反映するため。2026-11追加）。
+     * テーブルと、行の削除時に記録を残すトリガーを作る（IF NOT EXISTSなので何度呼んでもよい）。
+     */
+    private void createDeletionLog(SQLiteDatabase db) {
+        for (String sql : DeletionLogSchema.statements()) {
+            db.execSQL(sql);
+        }
     }
 
     @Override
@@ -166,6 +179,9 @@ public class DictionaryDbHelper extends SQLiteOpenHelper {
                 + "sort_order INTEGER,"
                 + "created_at TEXT NOT NULL,"
                 + "updated_at TEXT)");
+        }
+        if (oldVersion < 11) {
+            createDeletionLog(db);
         }
         // onUpgrade()自体がoldVersion < newVersionのときしか呼ばれないため、ここは常に
         // migrateExistingRows()を実行してよい（＝version 6→7のように新しいテーブル追加を

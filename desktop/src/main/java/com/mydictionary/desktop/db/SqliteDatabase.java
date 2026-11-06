@@ -1,5 +1,7 @@
 package com.mydictionary.desktop.db;
 
+import com.mydictionary.core.repository.DeletionLogSchema;
+
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.sql.Connection;
@@ -143,6 +145,10 @@ public class SqliteDatabase implements AutoCloseable {
             st.execute(createNoteTags);
             st.execute(createNoteColumns);
             st.execute(createNoteFieldValues);
+            // 削除の記録（片方の端末で削除した内容を、同期でもう片方へ反映するため。2026-11追加）。
+            for (String sql : DeletionLogSchema.statements()) {
+                st.execute(sql);
+            }
         } catch (SQLException e) {
             throw new RuntimeException("スキーマ初期化に失敗しました", e);
         }

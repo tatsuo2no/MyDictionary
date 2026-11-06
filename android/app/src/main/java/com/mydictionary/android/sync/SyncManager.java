@@ -13,6 +13,7 @@ import com.google.api.services.drive.DriveScopes;
 import com.google.api.services.drive.model.FileList;
 import com.mydictionary.android.AppPaths;
 import com.mydictionary.android.db.AndroidBookRepository;
+import com.mydictionary.android.db.AndroidDeletionLog;
 import com.mydictionary.android.db.AndroidNoteColumnRepository;
 import com.mydictionary.android.db.AndroidNoteRepository;
 import com.mydictionary.android.db.AndroidShelfRepository;
@@ -100,8 +101,11 @@ public final class SyncManager {
                 AndroidNoteColumnRepository remoteColumns = new AndroidNoteColumnRepository(remoteHelper);
                 AndroidNoteRepository remoteNotes = new AndroidNoteRepository(remoteHelper);
 
+                // 削除の記録も突き合わせ、片方の端末で削除したものをもう片方からも削除する。
                 DatabaseMerger.merge(localShelves, localBooks, localTags, localColumns, localNotes,
-                    remoteShelves, remoteBooks, remoteTags, remoteColumns, remoteNotes);
+                    new AndroidDeletionLog(localDbHelper),
+                    remoteShelves, remoteBooks, remoteTags, remoteColumns, remoteNotes,
+                    new AndroidDeletionLog(remoteHelper));
 
                 // 両端末の項目の和集合に同名の重複が生じていても、共有する前に1つにまとめる。残す項目は
                 // uuidで決まるので、デスクトップ版の起動時の整理と必ず同じ結果になる。
