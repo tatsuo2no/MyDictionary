@@ -2,6 +2,7 @@ package com.mydictionary.android;
 
 import android.content.Context;
 
+import com.mydictionary.core.model.BackgroundImageMode;
 import com.mydictionary.core.model.BookTheme;
 import com.mydictionary.core.model.NoteTextColor;
 
@@ -18,18 +19,18 @@ public final class NoteAppearance {
     }
 
     /**
-     * bodyタグに適用するCSSを組み立てる。背景画像が設定されていれば背景色の上に画面いっぱいに
-     * 敷き詰めて表示し（cover）、背景色は画像読み込み失敗時のフォールバックとしても機能する。
+     * bodyタグに適用するCSSを組み立てる。背景画像が設定されていれば背景色の上に、選ばれた表示方法
+     * （中央に表示＝余白は背景色／拡大して表示）で表示する。背景色は画像読み込み失敗時のフォールバックとしても機能する。
      * imageUrl（WebViewAssetLoaderの仮想ドメイン経由のURL、null可）は呼び出し側で解決すること。
      */
-    public static String buildBodyStyleCss(BookTheme backgroundTheme, String imageUrl, NoteTextColor textColor) {
+    public static String buildBodyStyleCss(BookTheme backgroundTheme, String imageUrl,
+                                           BackgroundImageMode imageMode, NoteTextColor textColor) {
         StringBuilder css = new StringBuilder();
         css.append("background-color:").append(backgroundTheme.getColorCode()).append(';');
         css.append("color:").append(textColor.getColorCode()).append(';');
         if (imageUrl != null && !imageUrl.isBlank()) {
             css.append("background-image:url('").append(imageUrl).append("');")
-                .append("background-size:cover;background-position:center;background-repeat:no-repeat;")
-                .append("background-attachment:fixed;");
+                .append(imageMode.backgroundCss());
         }
         return css.toString();
     }

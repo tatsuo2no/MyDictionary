@@ -1,5 +1,6 @@
 package com.mydictionary.desktop.db;
 
+import com.mydictionary.core.model.BackgroundImageMode;
 import com.mydictionary.core.model.BookTheme;
 import com.mydictionary.core.model.Note;
 import com.mydictionary.core.model.NoteTextColor;
@@ -104,8 +105,8 @@ public class SqliteNoteRepository implements NoteRepository {
         // title/readingは以前の固定項目の名残の列（NOT NULL制約があるため空文字を入れて満たす）。
         // 実際の値はカラム自由設定の仕組み（note_field_values）に持たせる。
         String sql = "INSERT INTO notes (uuid, book_id, title, reading, body, "
-            + "background_theme, background_image, text_color, created_at, updated_at) "
-            + "VALUES (?, ?, '', '', ?, ?, ?, ?, ?, ?)";
+            + "background_theme, background_image, background_image_mode, text_color, created_at, updated_at) "
+            + "VALUES (?, ?, '', '', ?, ?, ?, ?, ?, ?, ?)";
         try (PreparedStatement ps = database.getConnection().prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             String now = Instant.now().toString();
             ps.setString(1, UUID.randomUUID().toString());
@@ -113,9 +114,10 @@ public class SqliteNoteRepository implements NoteRepository {
             ps.setString(3, note.getBody());
             ps.setString(4, note.getBackgroundTheme().name());
             ps.setString(5, note.getBackgroundImageFileName());
-            ps.setString(6, note.getTextColor().name());
-            ps.setString(7, now);
+            ps.setString(6, note.getBackgroundImageMode().name());
+            ps.setString(7, note.getTextColor().name());
             ps.setString(8, now);
+            ps.setString(9, now);
             ps.executeUpdate();
             try (ResultSet keys = ps.getGeneratedKeys()) {
                 if (keys.next()) {
@@ -133,15 +135,16 @@ public class SqliteNoteRepository implements NoteRepository {
 
     @Override
     public void update(Note note) {
-        String sql = "UPDATE notes SET body=?, "
-            + "background_theme=?, background_image=?, text_color=?, updated_at=? WHERE id=?";
+        String sql = "UPDATE notes SET body=?, background_theme=?, background_image=?, "
+            + "background_image_mode=?, text_color=?, updated_at=? WHERE id=?";
         try (PreparedStatement ps = database.getConnection().prepareStatement(sql)) {
             ps.setString(1, note.getBody());
             ps.setString(2, note.getBackgroundTheme().name());
             ps.setString(3, note.getBackgroundImageFileName());
-            ps.setString(4, note.getTextColor().name());
-            ps.setString(5, Instant.now().toString());
-            ps.setLong(6, note.getId());
+            ps.setString(4, note.getBackgroundImageMode().name());
+            ps.setString(5, note.getTextColor().name());
+            ps.setString(6, Instant.now().toString());
+            ps.setLong(7, note.getId());
             ps.executeUpdate();
             saveTagLinks(note.getId(), note.getTagIds());
             saveFieldValues(note.getId(), note.getFieldValues());
@@ -164,20 +167,23 @@ public class SqliteNoteRepository implements NoteRepository {
     @Override
     public Note upsertFromSync(long bookId, String uuid, Map<Long, String> fieldValues, String body,
                                 List<Long> tagIds, BookTheme backgroundTheme, String backgroundImageFileName,
-                                NoteTextColor textColor, Instant createdAt, Instant updatedAt) {
+                                BackgroundImageMode backgroundImageMode, NoteTextColor textColor,
+                                Instant createdAt, Instant updatedAt) {
         Optional<Note> existing = findByUuid(bookId, uuid);
+        String modeName = backgroundImageMode == null ? null : backgroundImageMode.name();
         if (existing.isPresent()) {
             String sql = "UPDATE notes SET body=?, "
-                + "background_theme=?, background_image=?, text_color=?, updated_at=? "
+                + "background_theme=?, background_image=?, background_image_mode=?, text_color=?, updated_at=? "
                 + "WHERE book_id=? AND uuid=?";
             try (PreparedStatement ps = database.getConnection().prepareStatement(sql)) {
                 ps.setString(1, body);
                 ps.setString(2, backgroundTheme == null ? null : backgroundTheme.name());
                 ps.setString(3, backgroundImageFileName);
-                ps.setString(4, textColor == null ? null : textColor.name());
-                ps.setString(5, updatedAt.toString());
-                ps.setLong(6, bookId);
-                ps.setString(7, uuid);
+                ps.setString(4, modeName);
+                ps.setString(5, textColor == null ? null : textColor.name());
+                ps.setString(6, updatedAt.toString());
+                ps.setLong(7, bookId);
+                ps.setString(8, uuid);
                 ps.executeUpdate();
                 saveTagLinks(existing.get().getId(), tagIds);
                 saveFieldValues(existing.get().getId(), fieldValues);
@@ -188,17 +194,18 @@ public class SqliteNoteRepository implements NoteRepository {
         }
 
         String sql = "INSERT INTO notes (uuid, book_id, title, reading, body, "
-            + "background_theme, background_image, text_color, created_at, updated_at) "
-            + "VALUES (?, ?, '', '', ?, ?, ?, ?, ?, ?)";
+            + "background_theme, background_image, background_image_mode, text_color, created_at, updated_at) "
+            + "VALUES (?, ?, '', '', ?, ?, ?, ?, ?, ?, ?)";
         try (PreparedStatement ps = database.getConnection().prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setString(1, uuid);
             ps.setLong(2, bookId);
             ps.setString(3, body);
             ps.setString(4, backgroundTheme == null ? null : backgroundTheme.name());
             ps.setString(5, backgroundImageFileName);
-            ps.setString(6, textColor == null ? null : textColor.name());
-            ps.setString(7, createdAt.toString());
-            ps.setString(8, updatedAt.toString());
+            ps.setString(6, modeName);
+            ps.setString(7, textColor == null ? null : textColor.name());
+            ps.setString(8, createdAt.toString());
+            ps.setString(9, updatedAt.toString());
             ps.executeUpdate();
             try (ResultSet keys = ps.getGeneratedKeys()) {
                 if (keys.next()) {
@@ -292,6 +299,7 @@ public class SqliteNoteRepository implements NoteRepository {
             }
         }
         note.setBackgroundImageFileName(rs.getString("background_image"));
+        note.setBackgroundImageMode(BackgroundImageMode.fromName(rs.getString("background_image_mode")));
         String textColorName = rs.getString("text_color");
         if (textColorName != null) {
             try {

@@ -115,6 +115,8 @@
     <string name="label_note_background_image">本文の背景画像（オプション）</string>
     <string name="action_clear_image">画像をクリア</string>
     <string name="background_image_not_set">（未設定）</string>
+    <string name="background_image_mode_center">中央に表示</string>
+    <string name="background_image_mode_cover">拡大して表示</string>
     <string name="error_background_image_save_failed">背景画像の保存に失敗しました: %1$s</string>
     <string name="note_body_label">本文</string>
     <string name="action_insert_image">画像を挿入</string>

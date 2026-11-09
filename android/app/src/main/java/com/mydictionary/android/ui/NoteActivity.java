@@ -176,7 +176,7 @@ public class NoteActivity extends AppCompatActivity {
             ? "https://appassets.androidplatform.net" + IMAGE_ASSET_PATH + note.getBackgroundImageFileName()
             : null;
         String bodyAppearance = NoteAppearance.buildBodyStyleCss(
-            note.getBackgroundTheme(), imageUrl, note.getTextColor());
+            note.getBackgroundTheme(), imageUrl, note.getBackgroundImageMode(), note.getTextColor());
 
         String document = "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"/><style>"
             + com.mydictionary.android.CustomFontFiles.fontFaceCss(this)

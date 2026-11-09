@@ -1,5 +1,6 @@
 package com.mydictionary.core.repository;
 
+import com.mydictionary.core.model.BackgroundImageMode;
 import com.mydictionary.core.model.BookTheme;
 import com.mydictionary.core.model.Note;
 import com.mydictionary.core.model.NoteTextColor;
@@ -38,6 +39,7 @@ public interface NoteRepository {
      * （タグID・カラムID）を指定すること。
      */
     Note upsertFromSync(long bookId, String uuid, Map<Long, String> fieldValues, String body, List<Long> tagIds,
-                         BookTheme backgroundTheme, String backgroundImageFileName, NoteTextColor textColor,
+                         BookTheme backgroundTheme, String backgroundImageFileName,
+                         BackgroundImageMode backgroundImageMode, NoteTextColor textColor,
                          Instant createdAt, Instant updatedAt);
 }

@@ -4,6 +4,7 @@ import android.content.ContentValues;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 
+import com.mydictionary.core.model.BackgroundImageMode;
 import com.mydictionary.core.model.BookTheme;
 import com.mydictionary.core.model.Note;
 import com.mydictionary.core.model.NoteTextColor;
@@ -119,6 +120,7 @@ public class AndroidNoteRepository implements NoteRepository {
         values.put("body", note.getBody());
         values.put("background_theme", note.getBackgroundTheme().name());
         values.put("background_image", note.getBackgroundImageFileName());
+        values.put("background_image_mode", note.getBackgroundImageMode().name());
         values.put("text_color", note.getTextColor().name());
         values.put("created_at", now);
         values.put("updated_at", now);
@@ -135,6 +137,7 @@ public class AndroidNoteRepository implements NoteRepository {
         values.put("body", note.getBody());
         values.put("background_theme", note.getBackgroundTheme().name());
         values.put("background_image", note.getBackgroundImageFileName());
+        values.put("background_image_mode", note.getBackgroundImageMode().name());
         values.put("text_color", note.getTextColor().name());
         values.put("updated_at", Instant.now().toString());
         db.update("notes", values, "id = ?", new String[]{String.valueOf(note.getId())});
@@ -151,7 +154,8 @@ public class AndroidNoteRepository implements NoteRepository {
     @Override
     public Note upsertFromSync(long bookId, String uuid, Map<Long, String> fieldValues, String body,
                                 List<Long> tagIds, BookTheme backgroundTheme, String backgroundImageFileName,
-                                NoteTextColor textColor, Instant createdAt, Instant updatedAt) {
+                                BackgroundImageMode backgroundImageMode, NoteTextColor textColor,
+                                Instant createdAt, Instant updatedAt) {
         SQLiteDatabase db = dbHelper.getWritableDatabase();
         Optional<Note> existing = findByUuid(bookId, uuid);
 
@@ -159,6 +163,7 @@ public class AndroidNoteRepository implements NoteRepository {
         values.put("body", body);
         values.put("background_theme", backgroundTheme == null ? null : backgroundTheme.name());
         values.put("background_image", backgroundImageFileName);
+        values.put("background_image_mode", backgroundImageMode == null ? null : backgroundImageMode.name());
         values.put("text_color", textColor == null ? null : textColor.name());
         values.put("updated_at", updatedAt.toString());
 
@@ -230,6 +235,7 @@ public class AndroidNoteRepository implements NoteRepository {
             }
         }
         note.setBackgroundImageFileName(getStringOrNull(cursor, "background_image"));
+        note.setBackgroundImageMode(BackgroundImageMode.fromName(getStringOrNull(cursor, "background_image_mode")));
         String textColorName = getStringOrNull(cursor, "text_color");
         if (textColorName != null) {
             try {

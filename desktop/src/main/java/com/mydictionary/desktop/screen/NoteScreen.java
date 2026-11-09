@@ -175,7 +175,8 @@ public class NoteScreen {
 
     private String buildHtmlDocument(String bodyHtml) {
         String bodyAppearance = NoteFormWidgets.buildBodyStyleCss(
-            note.getBackgroundTheme(), note.getBackgroundImageFileName(), note.getTextColor());
+            note.getBackgroundTheme(), note.getBackgroundImageFileName(), note.getBackgroundImageMode(),
+            note.getTextColor());
         return "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"/><style>"
             + com.mydictionary.desktop.font.FontLibrary.fontFaceCss()
             + "body{font-family:'" + book.getEffectiveFontFamily() + "', sans-serif; font-size:"

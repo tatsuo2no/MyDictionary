@@ -1,6 +1,7 @@
 package com.mydictionary.desktop.screen;
 
 import com.mydictionary.core.markdown.HeadingStyles;
+import com.mydictionary.core.model.BackgroundImageMode;
 import com.mydictionary.core.model.Book;
 import com.mydictionary.core.model.BookTheme;
 import com.mydictionary.core.model.NoteTextColor;
@@ -72,19 +73,18 @@ final class NoteFormWidgets {
 
     /**
      * ノート本文（WebViewのbody要素）に適用するCSSを組み立てる。背景画像が設定されていれば
-     * 背景色の上に画面いっぱいに敷き詰めて表示し（cover）、背景色は画像読み込み失敗時の
-     * フォールバックとしても機能する。
+     * 背景色の上に、選ばれた表示方法（中央に表示＝余白は背景色／拡大して表示）で表示する。
+     * 背景色は画像読み込み失敗時のフォールバックとしても機能する。
      */
     static String buildBodyStyleCss(BookTheme backgroundTheme, String backgroundImageFileName,
-                                     NoteTextColor textColor) {
+                                     BackgroundImageMode imageMode, NoteTextColor textColor) {
         StringBuilder css = new StringBuilder();
         css.append("background-color:").append(backgroundTheme.getColorCode()).append(';');
         css.append("color:").append(textColor.getColorCode()).append(';');
         if (backgroundImageFileName != null && !backgroundImageFileName.isBlank()) {
             String imageUrl = FileUrls.toFileUrl(MainApp.IMAGE_DIR.resolve(backgroundImageFileName));
             css.append("background-image:url('").append(imageUrl).append("');")
-                .append("background-size:cover;background-position:center;background-repeat:no-repeat;")
-                .append("background-attachment:fixed;");
+                .append(imageMode.backgroundCss());
         }
         return css.toString();
     }

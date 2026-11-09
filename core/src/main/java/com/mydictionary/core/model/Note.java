@@ -27,6 +27,7 @@ public class Note {
     // コンストラクタ引数には含めずデフォルト値付きのフィールド+setterで扱う。
     private BookTheme backgroundTheme = BookTheme.WHITE;
     private String backgroundImageFileName;
+    private BackgroundImageMode backgroundImageMode = BackgroundImageMode.COVER;
     private NoteTextColor textColor = NoteTextColor.BLACK;
 
     /**
@@ -118,6 +119,15 @@ public class Note {
 
     public void setBackgroundImageFileName(String backgroundImageFileName) {
         this.backgroundImageFileName = backgroundImageFileName;
+    }
+
+    /** 背景画像の表示方法（中央に表示／拡大して表示）。 */
+    public BackgroundImageMode getBackgroundImageMode() {
+        return backgroundImageMode;
+    }
+
+    public void setBackgroundImageMode(BackgroundImageMode backgroundImageMode) {
+        this.backgroundImageMode = backgroundImageMode == null ? BackgroundImageMode.COVER : backgroundImageMode;
     }
 
     public NoteTextColor getTextColor() {

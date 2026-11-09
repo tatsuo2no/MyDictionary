@@ -11,6 +11,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
+import android.widget.RadioGroup;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -33,6 +34,7 @@ import com.mydictionary.android.db.AndroidBookRepository;
 import com.mydictionary.android.db.AndroidNoteColumnRepository;
 import com.mydictionary.android.db.AndroidNoteRepository;
 import com.mydictionary.android.db.AndroidTagRepository;
+import com.mydictionary.core.model.BackgroundImageMode;
 import com.mydictionary.core.model.Book;
 import com.mydictionary.core.model.BookTheme;
 import com.mydictionary.core.model.Note;
@@ -97,6 +99,7 @@ public class NoteCreateActivity extends AppCompatActivity {
     private Spinner textColorSpinner;
     private TextView backgroundImageLabel;
     private String backgroundImageFileName;
+    private BackgroundImageMode backgroundImageMode = BackgroundImageMode.COVER;
 
     private ActivityResultLauncher<String> pickImageLauncher;
     private ActivityResultLauncher<String> pickBackgroundImageLauncher;
@@ -277,6 +280,19 @@ public class NoteCreateActivity extends AppCompatActivity {
         backgroundImageFileName = existingNote != null ? existingNote.getBackgroundImageFileName() : null;
         backgroundImageLabel = findViewById(R.id.backgroundImageLabel);
         updateBackgroundImageLabel();
+
+        // 背景画像の表示方法（ラジオボタンで切り替える）
+        if (existingNote != null) {
+            backgroundImageMode = existingNote.getBackgroundImageMode();
+        }
+        RadioGroup imageModeGroup = findViewById(R.id.backgroundImageModeGroup);
+        imageModeGroup.check(backgroundImageMode == BackgroundImageMode.CENTER
+            ? R.id.backgroundModeCenter : R.id.backgroundModeCover);
+        imageModeGroup.setOnCheckedChangeListener((group, checkedId) -> {
+            backgroundImageMode = checkedId == R.id.backgroundModeCenter
+                ? BackgroundImageMode.CENTER : BackgroundImageMode.COVER;
+            applyEditorAppearance();
+        });
 
         findViewById(R.id.browseBackgroundImageButton).setOnClickListener(
             v -> pickBackgroundImageLauncher.launch("image/*"));
@@ -462,7 +478,8 @@ public class NoteCreateActivity extends AppCompatActivity {
         String imageUrl = NoteAppearance.backgroundImageExists(this, backgroundImageFileName)
             ? "https://appassets.androidplatform.net" + IMAGE_ASSET_PATH + backgroundImageFileName
             : null;
-        richEditor.setAppearance(NoteAppearance.buildBodyStyleCss(backgroundTheme, imageUrl, textColor));
+        richEditor.setAppearance(NoteAppearance.buildBodyStyleCss(
+            backgroundTheme, imageUrl, backgroundImageMode, textColor));
     }
 
     /** 編集欄（WebView）の書式。ノートの表示画面と同じ体裁（フォント・見出し・表・引用など）にそろえる。 */
@@ -511,6 +528,7 @@ public class NoteCreateActivity extends AppCompatActivity {
             existingNote.setTagIds(tagIdsToSave);
             existingNote.setBackgroundTheme(backgroundTheme);
             existingNote.setBackgroundImageFileName(backgroundImageFileName);
+            existingNote.setBackgroundImageMode(backgroundImageMode);
             existingNote.setTextColor(textColor);
             noteRepository.update(existingNote);
 
@@ -524,6 +542,7 @@ public class NoteCreateActivity extends AppCompatActivity {
             newNote.setTagIds(tagIdsToSave);
             newNote.setBackgroundTheme(backgroundTheme);
             newNote.setBackgroundImageFileName(backgroundImageFileName);
+            newNote.setBackgroundImageMode(backgroundImageMode);
             newNote.setTextColor(textColor);
             noteRepository.insert(newNote);
 

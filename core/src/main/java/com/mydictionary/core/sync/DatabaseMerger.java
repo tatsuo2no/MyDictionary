@@ -353,10 +353,12 @@ public final class DatabaseMerger {
             Map<Long, String> fieldValuesForB = mapToIdKeyed(fieldValuesByColumnUuid, columnIdByUuidB);
 
             sideA.upsertFromSync(bookIdA, uuid, fieldValuesForA, winner.getBody(), tagIdsForA,
-                winner.getBackgroundTheme(), winner.getBackgroundImageFileName(), winner.getTextColor(),
+                winner.getBackgroundTheme(), winner.getBackgroundImageFileName(), winner.getBackgroundImageMode(),
+                winner.getTextColor(),
                 winner.getCreatedAt(), winner.getUpdatedAt());
             sideB.upsertFromSync(bookIdB, uuid, fieldValuesForB, winner.getBody(), tagIdsForB,
-                winner.getBackgroundTheme(), winner.getBackgroundImageFileName(), winner.getTextColor(),
+                winner.getBackgroundTheme(), winner.getBackgroundImageFileName(), winner.getBackgroundImageMode(),
+                winner.getTextColor(),
                 winner.getCreatedAt(), winner.getUpdatedAt());
         }
     }

@@ -1,6 +1,7 @@
 package com.mydictionary.desktop.screen;
 
 import com.mydictionary.core.markdown.MarkdownRenderer;
+import com.mydictionary.core.model.BackgroundImageMode;
 import com.mydictionary.core.model.Book;
 import com.mydictionary.core.model.BookTheme;
 import com.mydictionary.core.model.Note;
@@ -23,9 +24,11 @@ import javafx.scene.control.ButtonType;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
+import javafx.scene.control.RadioButton;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
+import javafx.scene.control.ToggleGroup;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -88,6 +91,7 @@ public class NoteCreateScreen {
     private ComboBox<NoteTextColor> textColorCombo;
     private Label backgroundImageLabel;
     private String backgroundImageFileName;
+    private BackgroundImageMode backgroundImageMode = BackgroundImageMode.COVER;
     private VBox editRoot;
     private VBox previewRoot;
 
@@ -169,9 +173,31 @@ public class NoteCreateScreen {
         browseBackgroundImageButton.setOnAction(e -> onBrowseBackgroundImage());
         Button clearBackgroundImageButton = new Button("画像をクリア");
         clearBackgroundImageButton.setOnAction(e -> onClearBackgroundImage());
-        HBox backgroundImageRow = new HBox(8, browseBackgroundImageButton, clearBackgroundImageButton,
+        HBox backgroundImageButtons = new HBox(8, browseBackgroundImageButton, clearBackgroundImageButton,
             backgroundImageLabel);
-        backgroundImageRow.setAlignment(Pos.CENTER_LEFT);
+        backgroundImageButtons.setAlignment(Pos.CENTER_LEFT);
+
+        // 背景画像の表示方法（ラジオボタンで切り替える）
+        if (existingNote != null) {
+            backgroundImageMode = existingNote.getBackgroundImageMode();
+        }
+        ToggleGroup imageModeGroup = new ToggleGroup();
+        HBox imageModeRow = new HBox(16);
+        imageModeRow.setAlignment(Pos.CENTER_LEFT);
+        for (BackgroundImageMode mode : BackgroundImageMode.values()) {
+            RadioButton radio = new RadioButton(mode.getDisplayName());
+            radio.setToggleGroup(imageModeGroup);
+            radio.setUserData(mode);
+            radio.setSelected(mode == backgroundImageMode);
+            imageModeRow.getChildren().add(radio);
+        }
+        imageModeGroup.selectedToggleProperty().addListener((obs, oldToggle, newToggle) -> {
+            if (newToggle != null) {
+                backgroundImageMode = (BackgroundImageMode) newToggle.getUserData();
+                applyEditorAppearance();
+            }
+        });
+        VBox backgroundImageRow = new VBox(8, backgroundImageButtons, imageModeRow);
 
         textColorCombo = NoteFormWidgets.createTextColorCombo();
         textColorCombo.setValue(existingNote != null ? existingNote.getTextColor() : NoteTextColor.BLACK);
@@ -495,13 +521,15 @@ public class NoteCreateScreen {
             return;
         }
         richEditor.setAppearance(NoteFormWidgets.buildBodyStyleCss(
-            backgroundThemeCombo.getValue(), backgroundImageFileName, textColorCombo.getValue()));
+            backgroundThemeCombo.getValue(), backgroundImageFileName, backgroundImageMode,
+            textColorCombo.getValue()));
     }
 
     private void updatePreview() {
         String bodyHtml = new MarkdownRenderer().render(currentMarkdown());
         String bodyAppearance = NoteFormWidgets.buildBodyStyleCss(
-            backgroundThemeCombo.getValue(), backgroundImageFileName, textColorCombo.getValue());
+            backgroundThemeCombo.getValue(), backgroundImageFileName, backgroundImageMode,
+            textColorCombo.getValue());
         String document = "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"/><style>"
             + NoteFormWidgets.editorDocumentCss(book, bodyAppearance)
             + "</style>" + com.mydictionary.desktop.KatexAssets.headHtml()
@@ -544,6 +572,7 @@ public class NoteCreateScreen {
             existingNote.setTagIds(tagIdsToSave);
             existingNote.setBackgroundTheme(backgroundThemeCombo.getValue());
             existingNote.setBackgroundImageFileName(backgroundImageFileName);
+            existingNote.setBackgroundImageMode(backgroundImageMode);
             existingNote.setTextColor(textColorCombo.getValue());
             noteRepository.update(existingNote);
             navigator.showNote(bookId, existingNote.getId());
@@ -553,6 +582,7 @@ public class NoteCreateScreen {
             newNote.setTagIds(tagIdsToSave);
             newNote.setBackgroundTheme(backgroundThemeCombo.getValue());
             newNote.setBackgroundImageFileName(backgroundImageFileName);
+            newNote.setBackgroundImageMode(backgroundImageMode);
             newNote.setTextColor(textColorCombo.getValue());
             noteRepository.insert(newNote);
             navigator.showBook(bookId);

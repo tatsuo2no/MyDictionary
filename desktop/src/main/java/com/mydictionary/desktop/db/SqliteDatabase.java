@@ -94,6 +94,7 @@ public class SqliteDatabase implements AutoCloseable {
                 body TEXT NOT NULL,
                 background_theme TEXT,
                 background_image TEXT,
+                background_image_mode TEXT,
                 text_color TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
@@ -175,6 +176,7 @@ public class SqliteDatabase implements AutoCloseable {
         addColumnIfMissing("notes", "uuid", "TEXT");
         addColumnIfMissing("notes", "background_theme", "TEXT");
         addColumnIfMissing("notes", "background_image", "TEXT");
+        addColumnIfMissing("notes", "background_image_mode", "TEXT");
         addColumnIfMissing("notes", "text_color", "TEXT");
         addColumnIfMissing("note_columns", "is_primary", "INTEGER NOT NULL DEFAULT 0");
 

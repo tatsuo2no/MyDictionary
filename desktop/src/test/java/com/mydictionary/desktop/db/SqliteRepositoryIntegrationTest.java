@@ -1,5 +1,6 @@
 package com.mydictionary.desktop.db;
 
+import com.mydictionary.core.model.BackgroundImageMode;
 import com.mydictionary.core.model.Book;
 import com.mydictionary.core.model.BookCover;
 import com.mydictionary.core.model.BookFont;
@@ -145,13 +146,20 @@ class SqliteRepositoryIntegrationTest {
             Note note = new Note(0, null, book.getId(), "本文", Instant.now(), Instant.now());
             note.setBackgroundTheme(BookTheme.NAVY);
             note.setBackgroundImageFileName("12345_bg.png");
+            note.setBackgroundImageMode(BackgroundImageMode.CENTER);
             note.setTextColor(NoteTextColor.MAROON);
             Note saved = noteRepository.insert(note);
 
             Note reloaded = noteRepository.findById(saved.getId()).orElseThrow();
             assertEquals(BookTheme.NAVY, reloaded.getBackgroundTheme());
             assertEquals("12345_bg.png", reloaded.getBackgroundImageFileName());
+            assertEquals(BackgroundImageMode.CENTER, reloaded.getBackgroundImageMode());
             assertEquals(NoteTextColor.MAROON, reloaded.getTextColor());
+
+            // 表示方法の変更も保存される
+            reloaded.setBackgroundImageMode(BackgroundImageMode.COVER);
+            noteRepository.update(reloaded);
+            assertEquals(BackgroundImageMode.COVER, noteRepository.findById(saved.getId()).orElseThrow().getBackgroundImageMode());
         }
     }
 
@@ -179,6 +187,7 @@ class SqliteRepositoryIntegrationTest {
 
             assertEquals(BookTheme.WHITE, reloaded.getBackgroundTheme());
             assertEquals(null, reloaded.getBackgroundImageFileName());
+            assertEquals(BackgroundImageMode.COVER, reloaded.getBackgroundImageMode());
             assertEquals(NoteTextColor.BLACK, reloaded.getTextColor());
         }
     }

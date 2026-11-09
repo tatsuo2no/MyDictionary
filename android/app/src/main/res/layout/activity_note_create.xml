@@ -156,6 +156,26 @@
                 android:singleLine="true" />
         </LinearLayout>
 
+        <RadioGroup
+            android:id="@+id/backgroundImageModeGroup"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <RadioButton
+                android:id="@+id/backgroundModeCenter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/background_image_mode_center" />
+
+            <RadioButton
+                android:id="@+id/backgroundModeCover"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:text="@string/background_image_mode_cover" />
+        </RadioGroup>
+
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

@@ -1,5 +1,6 @@
 package com.mydictionary.desktop.db;
 
+import com.mydictionary.core.model.BackgroundImageMode;
 import com.mydictionary.core.model.Book;
 import com.mydictionary.core.model.BookCover;
 import com.mydictionary.core.model.BookFont;
@@ -201,6 +202,29 @@ class DeletionSyncIntegrationTest {
         assertTrue(a.shelves.findAll().isEmpty());
         assertTrue(b.shelves.findAll().isEmpty());
         assertTrue(b.books.findAll().isEmpty());
+    }
+
+    @Test
+    void backgroundImageModeIsSyncedToTheOtherSide() throws Exception {
+        Book book = createSyncedBook();
+        long titleColumnId = a.columns.findByBookId(book.getId()).get(0).getId();
+        Note note = new Note(0, null, book.getId(), "本文", Instant.now(), Instant.now());
+        note.setFieldValues(Map.of(titleColumnId, "京都"));
+        note.setBackgroundImageFileName("bg.png");
+        note.setBackgroundImageMode(BackgroundImageMode.CENTER);
+        a.notes.insert(note);
+        sync();
+
+        long bookIdInB = bookIdIn(b, book);
+        Note inB = b.notes.findByBookId(bookIdInB).get(0);
+        assertEquals(BackgroundImageMode.CENTER, inB.getBackgroundImageMode());
+
+        // B側で表示方法を変えると、A側へ伝わる
+        later();
+        inB.setBackgroundImageMode(BackgroundImageMode.COVER);
+        b.notes.update(inB);
+        sync();
+        assertEquals(BackgroundImageMode.COVER, a.notes.findByBookId(book.getId()).get(0).getBackgroundImageMode());
     }
 
     @Test
